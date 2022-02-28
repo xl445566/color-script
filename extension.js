@@ -13,7 +13,6 @@ function activate(context) {
     )
   );
 }
-// function deactivate(){}
 
 function createProvider() {
   let isCommenting = false;
@@ -23,7 +22,6 @@ function createProvider() {
     const allTokens = parseText(
       vscode.window.activeTextEditor.document.getText()
     );
-
     const builder = new vscode.SemanticTokensBuilder();
 
     allTokens.forEach((token) => {
@@ -45,19 +43,23 @@ function createProvider() {
     } else if (tokenType === "notInLegend") {
       return tokenTypes.size + 2;
     }
+
     return 0;
   }
 
   function encodeTokenModifiers(strTokenModifiers) {
     let result = 0;
+
     for (let i = 0; i < strTokenModifiers.length; i++) {
       const tokenModifier = strTokenModifiers[i];
+
       if (tokenModifiers.has(tokenModifier)) {
         result = result | (1 << tokenModifiers.get(tokenModifier));
       } else if (tokenModifier === "notInLegend") {
         result = result | (1 << (tokenModifiers.size + 2));
       }
     }
+
     return result;
   }
 
@@ -137,7 +139,6 @@ function createProvider() {
       text.split("*/")[1].trim()
     ) {
       isCommenting = false;
-      return false;
     }
 
     return false;
