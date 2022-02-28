@@ -61,7 +61,6 @@ function createProvider() {
     return result;
   }
 
-  // TODO:  GIT REPOSITORY
   // TODO:  재할당
   function parseText(text) {
     const results = [];
