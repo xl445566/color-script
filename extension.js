@@ -61,7 +61,6 @@ function createProvider() {
     return result;
   }
 
-  // TODO:  재할당
   function parseText(text) {
     const results = [];
     const lines = text.split(/\r\n|\r|\n/);
