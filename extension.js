@@ -1,6 +1,6 @@
 const vscode = require("vscode");
 const selector = require("./src/selector");
-const provider = require("./src/provider");
+const Provider = require("./src/provider");
 const { legend } = require("./src/legend");
 
 /**
@@ -11,7 +11,7 @@ function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
       selector,
-      provider,
+      Provider,
       legend
     )
   );
