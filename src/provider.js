@@ -3,12 +3,16 @@ const { tokenTypes, tokenModifiers } = require("./legend");
 const { checkBooleanType, checkNumberType } = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
+const document = {};
+const helper = helpProvider();
+const provider = createProvider();
+
 function createProvider() {
   let isCommenting = false;
   let isContinue = false;
   let currentOffset = 0;
   let tokenData = null;
-  let parsedText = {};
+  let tempParsedText = {};
 
   async function provideDocumentSemanticTokens() {
     const allTokens = parseText(
@@ -55,28 +59,46 @@ function createProvider() {
     return result;
   }
 
+  function validateType(value) {
+    if (checkBooleanType(value)) {
+      tokenData = parseToken("boolean");
+    } else if (checkNumberType(value)) {
+      tokenData = parseToken("number");
+    }
+
+    return tokenData;
+  }
+
+  function parseToken(type) {
+    return {
+      tokenType: "type",
+      tokenModifiers: ["declaration", `${type}`],
+    };
+  }
+
   function parseText(text) {
     const results = [];
     const lines = text.split(/\r\n|\r|\n/);
 
     for (let i = 0; i < lines.length; i++) {
+      // Multiline 처리
       if (isContinue && lines[i]) {
-        parsedText.value += lines[i];
+        tempParsedText.value += lines[i];
 
         if (lines[i].includes(";")) {
-          const validatedTypeResult = validateType(parsedText.value);
+          const validatedTypeResult = validateType(tempParsedText.value);
 
           if (validatedTypeResult) {
             results.push({
-              line: parsedText.line,
-              startCharacter: parsedText.startCharacter,
-              length: parsedText.length,
+              line: tempParsedText.line,
+              startCharacter: tempParsedText.startCharacter,
+              length: tempParsedText.length,
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
           }
 
-          parsedText = {};
+          tempParsedText = {};
           isContinue = false;
         }
 
@@ -87,47 +109,95 @@ function createProvider() {
 
       tokenData = null;
       currentOffset = 0;
+
+      // 공백체크 , 빈줄체크 , 주석처리
       const validatedLineResults = validateLine(lines[i], isCommenting);
-      const isSkip = validatedLineResults[0];
-      isCommenting = validatedLineResults[1];
+      const isSkip = validatedLineResults.isSkip;
+      isCommenting = validatedLineResults.isCommenting;
 
       if (isSkip || isCommenting) {
         continue;
       }
 
       const trimedLineResults = trimBlankText(lines[i]);
-      const line = trimedLineResults[0];
-      currentOffset = trimedLineResults[1];
+      const trimedLine = trimedLineResults.line;
+      currentOffset = trimedLineResults.count;
 
-      const removedCommentLineResults = removeComment(line, currentOffset);
-      const convertedLine = removedCommentLineResults[0].split("=");
-      currentOffset = removedCommentLineResults[1];
+      const removedCommentLineResults = removeComment(
+        trimedLine,
+        currentOffset
+      );
+      const convertedLineArray = removedCommentLineResults.line.split("=");
+      currentOffset = removedCommentLineResults.count;
 
-      const declarationArea = convertedLine[0].split(" ");
-      const definitionArea = convertedLine[1].trim();
+      // 변수 , 값 분류
+      const declarationArea = convertedLineArray[0].split(" ");
+      const definitionArea = convertedLineArray[1].trim();
 
-      const startPos = currentOffset + declarationArea[0].length + 1;
+      // 변수 시작 , 종료 포지션
+      let startPos = currentOffset + declarationArea[0].length + 1;
       const endPos = startPos + declarationArea[1].length;
 
+      // 변수의 값으로 Type 체크
       const validatedTypeResult = validateType(definitionArea);
 
-      // console.log("convertedLine :::::", convertedLine);
-      // console.log("variable :::::", declarationArea);
-      // console.log("offset :::::", currentOffset);
-      // console.log(isNaN(definitionArea.slice(0, -1)));
-      // console.log("\n");
-      // console.log("line :::::", line);
-      // console.log("value :::::", definitionArea);
-
+      // Number Multiline 경우
       if (!definitionArea.includes(";")) {
-        parsedText.line = i;
-        parsedText.startCharacter = startPos;
-        parsedText.length = endPos - startPos;
-        parsedText.value = definitionArea;
+        tempParsedText.line = i;
+        tempParsedText.startCharacter = startPos;
+        tempParsedText.length = endPos - startPos;
+        tempParsedText.value = definitionArea;
 
         isContinue = true;
+
         continue;
       }
+
+      // if : 변수 초기선언시 const , var , let -> parsing
+      // else :  이미 선언된 변수 , const인 변수는 로직을 수행하지 못하도록 startPos 조정
+      if (
+        declarationArea[0] === "var" ||
+        declarationArea[0] === "let" ||
+        declarationArea[0] === "const"
+      ) {
+        document[declarationArea[1]] = [
+          {
+            statement: declarationArea[0],
+            value: definitionArea,
+            line: i,
+            startPos: startPos,
+            endPos: endPos,
+            length: endPos - startPos,
+            tokenData,
+          },
+        ];
+      } else if (
+        document[declarationArea[0]] &&
+        document[declarationArea[0]][0].statement !== "const"
+      ) {
+        console.log("\n");
+        console.log("variable :::::", declarationArea);
+        console.log("value :::::", definitionArea);
+        // console.log("line :::::", i);
+        // console.log("offset :::::", currentOffset);
+        // console.log("start :::::", startPos - declarationArea[0].length);
+        // console.log("end :::::", endPos);
+        console.log("validatedTypeResult :::::", validatedTypeResult);
+
+        startPos = endPos - declarationArea[0].length - 1;
+
+        document[declarationArea[0]].push({
+          value: definitionArea,
+          line: i,
+          startPos,
+          endPos: endPos,
+          length: endPos - startPos,
+          tokenData,
+        });
+      }
+
+      // console.log("\n");
+      console.log("document", document);
 
       if (validatedTypeResult) {
         results.push({
@@ -143,28 +213,13 @@ function createProvider() {
     return results;
   }
 
-  function parseToken(type) {
-    return {
-      tokenType: "type",
-      tokenModifiers: ["declaration", `${type}`],
-    };
-  }
-
-  function validateType(value) {
-    if (checkBooleanType(value)) {
-      tokenData = parseToken("boolean");
-    } else if (checkNumberType(value)) {
-      tokenData = parseToken("number");
-    }
-
-    return tokenData;
-  }
-
   return {
     provideDocumentSemanticTokens,
   };
 }
 
-const provider = createProvider();
+function helpProvider() {
+  return {};
+}
 
 module.exports = provider;

@@ -1,22 +1,34 @@
 function validateLine(text, isCommenting) {
   if (!text) {
-    return [true, isCommenting];
+    return {
+      isSkip: true,
+      isCommenting,
+    };
   }
 
   if (text.trim().indexOf("//") === 0) {
-    return [true, isCommenting];
+    return {
+      isSkip: true,
+      isCommenting,
+    };
   }
 
   if (
     text.trim().indexOf("/*") === 0 &&
     text.trim().indexOf("*/") === text.trim().length - 2
   ) {
-    return [true, isCommenting];
+    return {
+      isSkip: true,
+      isCommenting,
+    };
   }
 
   if (text.trim().indexOf("/*") === 0 && !text.includes("*/")) {
     isCommenting = true;
-    return [true, isCommenting];
+    return {
+      isSkip: true,
+      isCommenting: true,
+    };
   }
 
   if (
@@ -25,7 +37,10 @@ function validateLine(text, isCommenting) {
     !text.split("*/")[1].trim()
   ) {
     isCommenting = false;
-    return [true, isCommenting];
+    return {
+      isSkip: true,
+      isCommenting: false,
+    };
   }
 
   if (
@@ -36,7 +51,10 @@ function validateLine(text, isCommenting) {
     isCommenting = false;
   }
 
-  return [false, isCommenting];
+  return {
+    isSkip: false,
+    isCommenting,
+  };
 }
 
 function trimBlankText(text) {
@@ -55,7 +73,10 @@ function trimBlankText(text) {
     }
   }
 
-  return [splitedTextArray.join(" "), count];
+  return {
+    line: splitedTextArray.join(" "),
+    count,
+  };
 }
 
 function removeComment(text, currentOffset) {
@@ -63,17 +84,26 @@ function removeComment(text, currentOffset) {
   let count = currentOffset;
 
   if (isSlashComment) {
-    return [text.split(";")[0] + ";", count];
+    return {
+      line: text.split(";")[0] + ";",
+      count,
+    };
   }
 
   const isBlockComment = text.includes("*/");
 
   if (isBlockComment) {
     count += text.indexOf(text.split("*/")[1].trimStart());
-    return [text.split("*/")[1].trimStart(), count];
+    return {
+      line: text.split("*/")[1].trimStart(),
+      count,
+    };
   }
 
-  return [text, count];
+  return {
+    line: text,
+    count,
+  };
 }
 
 exports.validateLine = validateLine;

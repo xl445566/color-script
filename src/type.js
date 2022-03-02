@@ -1,11 +1,5 @@
 function checkBooleanType(value) {
-  if (
-    value === "true;" ||
-    value === "true" ||
-    value === "false;" ||
-    value === "false" ||
-    value.includes("!")
-  ) {
+  if (value === "true;" || value === "false;" || value.includes("!")) {
     return true;
   }
 
