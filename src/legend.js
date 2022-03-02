@@ -18,6 +18,7 @@ const legend = (function () {
     "undefined",
     "array",
     "object",
+    "not_defined",
   ];
 
   tokenModifiersLegend.forEach((tokenModifier, index) =>
