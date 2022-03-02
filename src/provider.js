@@ -138,8 +138,8 @@ function createProvider() {
       let startPos = currentOffset + declarationArea[0].length + 1;
       const endPos = startPos + declarationArea[1].length;
 
-      // 변수의 값으로 Type 체크
-      const validatedTypeResult = validateType(definitionArea);
+      // 변수의 값으로 Type 체크 tokenData 생성
+      validateType(definitionArea);
 
       // Number Multiline 경우
       if (!definitionArea.includes(";")) {
@@ -154,52 +154,62 @@ function createProvider() {
       }
 
       // if : 변수 초기선언시 const , var , let -> parsing
-      // else :  이미 선언된 변수 , const인 변수는 로직을 수행하지 못하도록 startPos 조정
+      // else if :  이미 선언된 변수 , const인 변수는 로직을 수행하지 못하도록 startPos 조정
+      // else if : 변수 = 변수를 할당할 때
       if (
         declarationArea[0] === "var" ||
         declarationArea[0] === "let" ||
         declarationArea[0] === "const"
       ) {
-        document[declarationArea[1]] = [
+        const variableName = declarationArea[1];
+        const statement = declarationArea[0];
+
+        document[variableName] = [
           {
-            statement: declarationArea[0],
+            statement,
             value: definitionArea,
             line: i,
-            startPos: startPos,
-            endPos: endPos,
+            startPos,
+            endPos,
             length: endPos - startPos,
             tokenData,
           },
         ];
       } else if (
         document[declarationArea[0]] &&
-        document[declarationArea[0]][0].statement !== "const"
+        document[declarationArea[0]][0].statement !== "const" &&
+        tokenData
       ) {
-        console.log("\n");
-        console.log("variable :::::", declarationArea);
-        console.log("value :::::", definitionArea);
-        // console.log("line :::::", i);
-        // console.log("offset :::::", currentOffset);
-        // console.log("start :::::", startPos - declarationArea[0].length);
-        // console.log("end :::::", endPos);
-        console.log("validatedTypeResult :::::", validatedTypeResult);
+        const variableName = declarationArea[0];
+        startPos = endPos - variableName.length - 1;
 
-        startPos = endPos - declarationArea[0].length - 1;
-
-        document[declarationArea[0]].push({
+        document[variableName].push({
           value: definitionArea,
           line: i,
           startPos,
-          endPos: endPos,
+          endPos,
+          length: endPos - startPos,
+          tokenData,
+        });
+      } else if (document[declarationArea.slice(0, -1)] && !tokenData) {
+        const variableName = declarationArea[0];
+        const latestVariableInfo =
+          document[variableName][document[variableName].length - 1];
+
+        startPos = endPos - variableName.length - 1;
+        tokenData = latestVariableInfo.tokenData;
+
+        document[variableName].push({
+          value: definitionArea,
+          line: i,
+          startPos,
+          endPos,
           length: endPos - startPos,
           tokenData,
         });
       }
 
-      // console.log("\n");
-      console.log("document", document);
-
-      if (validatedTypeResult) {
+      if (tokenData) {
         results.push({
           line: i,
           startCharacter: startPos,
@@ -223,3 +233,14 @@ function helpProvider() {
 }
 
 module.exports = provider;
+
+// console.log("\n");
+// console.log("variable :::::", declarationArea);
+// console.log("value :::::", definitionArea);
+// console.log("line :::::", i);
+// console.log("offset :::::", currentOffset);
+// console.log("start :::::", startPos - declarationArea[0].length);
+// console.log("end :::::", endPos);
+// console.log("validatedTypeResult :::::", validatedTypeResult);
+// console.log("latestVariableInfo", latestVariableInfo);
+// console.log(document[declarationArea.slice(0, -1)]);
