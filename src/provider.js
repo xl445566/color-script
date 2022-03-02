@@ -12,7 +12,8 @@ function createProvider() {
   let isContinue = false;
   let currentOffset = 0;
   let tokenData = null;
-  let tempParsedText = {};
+  let tempraryParsedText = {};
+  let pendingDocument = {};
 
   async function provideDocumentSemanticTokens() {
     const allTokens = parseText(
@@ -73,29 +74,27 @@ function createProvider() {
     for (let i = 0; i < lines.length; i++) {
       // Multiline 처리
       if (isContinue && lines[i]) {
-        tempParsedText.value += lines[i];
+        tempraryParsedText.value += lines[i];
 
         if (lines[i].includes(";")) {
-          tokenData = helper.validateType(tempParsedText.value);
+          tokenData = helper.validateType(tempraryParsedText.value);
 
           if (tokenData) {
             results.push({
-              line: tempParsedText.line,
-              startCharacter: tempParsedText.startCharacter,
-              length: tempParsedText.length,
+              line: tempraryParsedText.line,
+              startCharacter: tempraryParsedText.startCharacter,
+              length: tempraryParsedText.length,
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
           }
 
-          tempParsedText = {};
+          tempraryParsedText = {};
           isContinue = false;
         }
 
-        helper.validateLastline(i, lines.length);
         continue;
       } else if (isContinue && !lines[i]) {
-        helper.validateLastline(i, lines.length);
         continue;
       }
 
@@ -109,7 +108,6 @@ function createProvider() {
       isCommenting = validatedLineResults.isCommenting;
 
       if (isSkip || isCommenting) {
-        helper.validateLastline(i, lines.length);
         continue;
       }
 
@@ -137,13 +135,13 @@ function createProvider() {
 
       // Number Multiline 경우
       if (!definitionArea.includes(";")) {
-        tempParsedText.line = i;
-        tempParsedText.startCharacter = startPos;
-        tempParsedText.length = endPos - startPos;
-        tempParsedText.value = definitionArea;
+        tempraryParsedText.line = i;
+        tempraryParsedText.startCharacter = startPos;
+        tempraryParsedText.length = endPos - startPos;
+        tempraryParsedText.value = definitionArea;
 
         isContinue = true;
-        helper.validateLastline(i, lines.length);
+
         continue;
       }
 
@@ -185,12 +183,13 @@ function createProvider() {
           tokenData,
         });
       } else if (document[declarationArea.slice(0, -1)] && !tokenData) {
-        // else if : 변수 = 변수를 할당할 때 -> 선언 O 변수 , 선언 X 변수
+        // else if : 변수 = 변수를 할당할 때
         const variableInValue = definitionArea.slice(0, -1);
         const variableName = declarationArea[0];
         let latestVariableInfo = null;
 
         if (document[variableInValue]) {
+          // 선언 O 변수
           latestVariableInfo = document[variableInValue].slice(-1)[0];
           startPos = endPos - variableName.length - 1;
           tokenData = latestVariableInfo.tokenData;
@@ -211,6 +210,14 @@ function createProvider() {
           console.log("start :::::", startPos - declarationArea[0].length);
           console.log("end :::::", endPos);
           console.log("tokenData :::::", tokenData);
+        } else {
+          // 선언 X 변수
+          console.log("\n");
+          console.log("선언하지 않은 변수를 할당받은 경우");
+          console.log("변수 : ", variableName);
+          console.log("값 : ", definitionArea);
+
+          // if (pendingDocument[de]
         }
       }
 
@@ -223,8 +230,6 @@ function createProvider() {
           tokenModifiers: tokenData.tokenModifiers,
         });
       }
-
-      helper.validateLastline(i, lines.length);
     }
 
     return results;
@@ -252,24 +257,9 @@ function createHelper() {
     return tokenData;
   }
 
-  function validateLastline(lineNumber, totalLength) {
-    if (lineNumber === totalLength - 1) {
-      document = {};
-    }
-  }
-
   return {
     validateType,
-    validateLastline,
   };
 }
 
 module.exports = provider;
-
-// console.log("\n");
-// console.log("variable :::::", declarationArea);
-// console.log("value :::::", definitionArea);
-// console.log("line :::::", i);
-// console.log("offset :::::", currentOffset);
-// console.log("start :::::", startPos - declarationArea[0].length);
-// console.log("end :::::", endPos);
