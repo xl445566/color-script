@@ -1,19 +1,23 @@
 const vscode = require("vscode");
 const { tokenTypes, tokenModifiers } = require("./legend");
-const { checkBooleanType, checkNumberType } = require("./type");
+const {
+  checkBooleanType,
+  checkNumberType,
+  checkStringType,
+} = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
-let documents = {};
-let pendingDocuments = {};
-const Helper = createHelper();
-const Provider = createProvider();
+const helper = Helper();
+const provider = Provider();
 
-function createProvider() {
+function Provider() {
+  let documents = {};
+  let pendingDocuments = {};
+  let tempraryParsedText = {};
+  let tokenData = null;
+  let currentOffset = 0;
   let isCommenting = false;
   let isContinue = false;
-  let currentOffset = 0;
-  let tokenData = null;
-  let tempraryParsedText = {};
 
   async function provideDocumentSemanticTokens() {
     const allTokens = parseText(
@@ -84,8 +88,8 @@ function createProvider() {
       if (isContinue && lines[i]) {
         tempraryParsedText.value += lines[i];
 
-        if (lines[i].includes(";")) {
-          tokenData = Helper.validateType(tempraryParsedText.value);
+        if (lines[i].slice(-1) === ";") {
+          tokenData = helper.validateType(tempraryParsedText.value);
 
           if (tokenData) {
             results.push({
@@ -101,7 +105,7 @@ function createProvider() {
           isContinue = false;
         }
 
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -114,16 +118,8 @@ function createProvider() {
 
         continue;
       } else if (isContinue && !lines[i]) {
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
+        tempraryParsedText = {};
+        isContinue = false;
 
         continue;
       }
@@ -138,7 +134,7 @@ function createProvider() {
       isCommenting = validatedLineResults.isCommenting;
 
       if (isSkip || isCommenting) {
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -172,10 +168,10 @@ function createProvider() {
       const endPos = startPos + declarationArea[1].length;
 
       // 변수의 값으로 Type 체크 tokenData 생성
-      tokenData = Helper.validateType(definitionArea);
+      tokenData = helper.validateType(definitionArea);
 
-      // Number Multiline 경우
-      if (!definitionArea.includes(";")) {
+      // Number Multiline , String Multiline
+      if (definitionArea.slice(-1) !== ";") {
         tempraryParsedText.line = i;
         tempraryParsedText.startCharacter = startPos;
         tempraryParsedText.length = endPos - startPos;
@@ -183,7 +179,7 @@ function createProvider() {
 
         isContinue = true;
 
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -205,18 +201,65 @@ function createProvider() {
       ) {
         const variableName = declarationArea[1];
         const statement = declarationArea[0];
+        const variableInValue = definitionArea.slice(0, -1);
 
-        documents[variableName] = [
-          {
-            statement,
-            value: definitionArea,
-            line: i,
-            startPos,
-            endPos,
-            length: endPos - startPos,
-            tokenData,
-          },
-        ];
+        if (tokenData) {
+          // 첫 변수선언 = 값
+          documents[variableName] = [
+            {
+              statement,
+              value: definitionArea,
+              line: i,
+              startPos,
+              endPos,
+              length: endPos - startPos,
+              tokenData,
+            },
+          ];
+        } else {
+          // 첫 변수선언 = 변수
+          if (documents[variableInValue]) {
+            // 변수 (선언 O)
+            const latestVariableInfo = documents[variableInValue].slice(-1)[0];
+            tokenData = latestVariableInfo.tokenData;
+
+            documents[variableName] = [
+              {
+                statement,
+                value: definitionArea,
+                line: i,
+                startPos,
+                endPos,
+                length: endPos - startPos,
+                tokenData,
+              },
+            ];
+          } else {
+            if (!pendingDocuments[variableName]) {
+              // 변수 (선언 X)
+              pendingDocuments[variableName] = [
+                {
+                  value: variableInValue,
+                  line: i,
+                  startPos,
+                  endPos,
+                  length: endPos - startPos,
+                  tokenData: null,
+                },
+              ];
+            } else {
+              // 선언 X 변수 중복 발견시
+              pendingDocuments[variableName].push({
+                value: variableInValue,
+                line: i,
+                startPos,
+                endPos,
+                length: endPos - startPos,
+                tokenData: null,
+              });
+            }
+          }
+        }
       } else if (
         documents[declarationArea[0]] &&
         documents[declarationArea[0]][0].statement !== "const" &&
@@ -291,7 +334,7 @@ function createProvider() {
         });
       }
 
-      const processedPendingDocumentsResults = Helper.processPendingDocuments(
+      const processedPendingDocumentsResults = helper.processPendingDocuments(
         i,
         lines.length,
         pendingDocuments,
@@ -315,14 +358,17 @@ function createProvider() {
   };
 }
 
-function createHelper() {
+function Helper() {
   function validateType(value) {
     let tokenData = null;
+    const checkFunctions = [checkBooleanType, checkNumberType, checkStringType];
+    const types = ["boolean", "number", "string"];
 
-    if (checkBooleanType(value)) {
-      tokenData = Provider.parseToken("boolean");
-    } else if (checkNumberType(value)) {
-      tokenData = Provider.parseToken("number");
+    for (let i = 0; i < checkFunctions.length; i++) {
+      if (checkFunctions[i](value)) {
+        tokenData = provider.parseToken(types[i]);
+        return tokenData;
+      }
     }
 
     return tokenData;
@@ -339,12 +385,16 @@ function createHelper() {
 
     if (currentLine === lastLine - 1) {
       keys.forEach((key) => {
-        const statement = documents[key][0].statement;
         const pendingDocumentArray = pendingDocuments[key];
+        let statement = null;
 
         pendingDocumentArray.forEach((pendingDocument) => {
+          if (documents[pendingDocument.value]) {
+            statement = documents[pendingDocument.value][0].statement;
+          }
+
           if (statement === "var") {
-            const tokenData = Provider.parseToken("undefined");
+            const tokenData = provider.parseToken("undefined");
 
             results.push({
               line: pendingDocument.line,
@@ -353,8 +403,8 @@ function createHelper() {
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
-          } else if (statement === "let") {
-            const tokenData = Provider.parseToken("not_defined");
+          } else if (statement === "let" || !statement) {
+            const tokenData = provider.parseToken("not_defined");
 
             results.push({
               line: pendingDocument.line,
@@ -377,4 +427,4 @@ function createHelper() {
   };
 }
 
-module.exports = Provider;
+module.exports = provider;
