@@ -7,17 +7,17 @@ const {
 } = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
-let documents = {};
-let pendingDocuments = {};
 const helper = Helper();
 const provider = Provider();
 
 function Provider() {
+  let documents = {};
+  let pendingDocuments = {};
+  let tempraryParsedText = {};
+  let tokenData = null;
+  let currentOffset = 0;
   let isCommenting = false;
   let isContinue = false;
-  let currentOffset = 0;
-  let tokenData = null;
-  let tempraryParsedText = {};
 
   async function provideDocumentSemanticTokens() {
     const allTokens = parseText(
@@ -88,7 +88,7 @@ function Provider() {
       if (isContinue && lines[i]) {
         tempraryParsedText.value += lines[i];
 
-        if (lines[i].includes(";")) {
+        if (lines[i].slice(-1) === ";") {
           tokenData = helper.validateType(tempraryParsedText.value);
 
           if (tokenData) {
@@ -118,16 +118,8 @@ function Provider() {
 
         continue;
       } else if (isContinue && !lines[i]) {
-        const processedPendingDocumentsResults = helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
+        tempraryParsedText = {};
+        isContinue = false;
 
         continue;
       }
@@ -180,8 +172,6 @@ function Provider() {
 
       // Number Multiline , String Multiline
       if (definitionArea.slice(-1) !== ";") {
-        console.log("멀티라인", definitionArea);
-
         tempraryParsedText.line = i;
         tempraryParsedText.startCharacter = startPos;
         tempraryParsedText.length = endPos - startPos;
@@ -211,18 +201,65 @@ function Provider() {
       ) {
         const variableName = declarationArea[1];
         const statement = declarationArea[0];
+        const variableInValue = definitionArea.slice(0, -1);
 
-        documents[variableName] = [
-          {
-            statement,
-            value: definitionArea,
-            line: i,
-            startPos,
-            endPos,
-            length: endPos - startPos,
-            tokenData,
-          },
-        ];
+        if (tokenData) {
+          // 첫 변수선언 = 값
+          documents[variableName] = [
+            {
+              statement,
+              value: definitionArea,
+              line: i,
+              startPos,
+              endPos,
+              length: endPos - startPos,
+              tokenData,
+            },
+          ];
+        } else {
+          // 첫 변수선언 = 변수
+          if (documents[variableInValue]) {
+            // 변수 (선언 O)
+            const latestVariableInfo = documents[variableInValue].slice(-1)[0];
+            tokenData = latestVariableInfo.tokenData;
+
+            documents[variableName] = [
+              {
+                statement,
+                value: definitionArea,
+                line: i,
+                startPos,
+                endPos,
+                length: endPos - startPos,
+                tokenData,
+              },
+            ];
+          } else {
+            if (!pendingDocuments[variableName]) {
+              // 변수 (선언 X)
+              pendingDocuments[variableName] = [
+                {
+                  value: variableInValue,
+                  line: i,
+                  startPos,
+                  endPos,
+                  length: endPos - startPos,
+                  tokenData: null,
+                },
+              ];
+            } else {
+              // 선언 X 변수 중복 발견시
+              pendingDocuments[variableName].push({
+                value: variableInValue,
+                line: i,
+                startPos,
+                endPos,
+                length: endPos - startPos,
+                tokenData: null,
+              });
+            }
+          }
+        }
       } else if (
         documents[declarationArea[0]] &&
         documents[declarationArea[0]][0].statement !== "const" &&
@@ -324,13 +361,14 @@ function Provider() {
 function Helper() {
   function validateType(value) {
     let tokenData = null;
+    const checkFunctions = [checkBooleanType, checkNumberType, checkStringType];
+    const types = ["boolean", "number", "string"];
 
-    if (checkBooleanType(value)) {
-      tokenData = provider.parseToken("boolean");
-    } else if (checkNumberType(value)) {
-      tokenData = provider.parseToken("number");
-    } else if (checkStringType(value)) {
-      tokenData = provider.parseToken("string");
+    for (let i = 0; i < checkFunctions.length; i++) {
+      if (checkFunctions[i](value)) {
+        tokenData = provider.parseToken(types[i]);
+        return tokenData;
+      }
     }
 
     return tokenData;
@@ -347,10 +385,14 @@ function Helper() {
 
     if (currentLine === lastLine - 1) {
       keys.forEach((key) => {
-        const statement = documents[key][0].statement;
         const pendingDocumentArray = pendingDocuments[key];
+        let statement = null;
 
         pendingDocumentArray.forEach((pendingDocument) => {
+          if (documents[pendingDocument.value]) {
+            statement = documents[pendingDocument.value][0].statement;
+          }
+
           if (statement === "var") {
             const tokenData = provider.parseToken("undefined");
 
@@ -361,7 +403,7 @@ function Helper() {
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
-          } else if (statement === "let") {
+          } else if (statement === "let" || !statement) {
             const tokenData = provider.parseToken("not_defined");
 
             results.push({
