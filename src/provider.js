@@ -1,14 +1,18 @@
 const vscode = require("vscode");
 const { tokenTypes, tokenModifiers } = require("./legend");
-const { checkBooleanType, checkNumberType } = require("./type");
+const {
+  checkBooleanType,
+  checkNumberType,
+  checkStringType,
+} = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
 let documents = {};
 let pendingDocuments = {};
-const Helper = createHelper();
-const Provider = createProvider();
+const helper = Helper();
+const provider = Provider();
 
-function createProvider() {
+function Provider() {
   let isCommenting = false;
   let isContinue = false;
   let currentOffset = 0;
@@ -85,7 +89,7 @@ function createProvider() {
         tempraryParsedText.value += lines[i];
 
         if (lines[i].includes(";")) {
-          tokenData = Helper.validateType(tempraryParsedText.value);
+          tokenData = helper.validateType(tempraryParsedText.value);
 
           if (tokenData) {
             results.push({
@@ -101,7 +105,7 @@ function createProvider() {
           isContinue = false;
         }
 
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -114,7 +118,7 @@ function createProvider() {
 
         continue;
       } else if (isContinue && !lines[i]) {
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -138,7 +142,7 @@ function createProvider() {
       isCommenting = validatedLineResults.isCommenting;
 
       if (isSkip || isCommenting) {
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -172,10 +176,12 @@ function createProvider() {
       const endPos = startPos + declarationArea[1].length;
 
       // 변수의 값으로 Type 체크 tokenData 생성
-      tokenData = Helper.validateType(definitionArea);
+      tokenData = helper.validateType(definitionArea);
 
-      // Number Multiline 경우
-      if (!definitionArea.includes(";")) {
+      // Number Multiline , String Multiline
+      if (definitionArea.slice(-1) !== ";") {
+        console.log("멀티라인", definitionArea);
+
         tempraryParsedText.line = i;
         tempraryParsedText.startCharacter = startPos;
         tempraryParsedText.length = endPos - startPos;
@@ -183,7 +189,7 @@ function createProvider() {
 
         isContinue = true;
 
-        const processedPendingDocumentsResults = Helper.processPendingDocuments(
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
           i,
           lines.length,
           pendingDocuments,
@@ -291,7 +297,7 @@ function createProvider() {
         });
       }
 
-      const processedPendingDocumentsResults = Helper.processPendingDocuments(
+      const processedPendingDocumentsResults = helper.processPendingDocuments(
         i,
         lines.length,
         pendingDocuments,
@@ -315,14 +321,16 @@ function createProvider() {
   };
 }
 
-function createHelper() {
+function Helper() {
   function validateType(value) {
     let tokenData = null;
 
     if (checkBooleanType(value)) {
-      tokenData = Provider.parseToken("boolean");
+      tokenData = provider.parseToken("boolean");
     } else if (checkNumberType(value)) {
-      tokenData = Provider.parseToken("number");
+      tokenData = provider.parseToken("number");
+    } else if (checkStringType(value)) {
+      tokenData = provider.parseToken("string");
     }
 
     return tokenData;
@@ -344,7 +352,7 @@ function createHelper() {
 
         pendingDocumentArray.forEach((pendingDocument) => {
           if (statement === "var") {
-            const tokenData = Provider.parseToken("undefined");
+            const tokenData = provider.parseToken("undefined");
 
             results.push({
               line: pendingDocument.line,
@@ -354,7 +362,7 @@ function createHelper() {
               tokenModifiers: tokenData.tokenModifiers,
             });
           } else if (statement === "let") {
-            const tokenData = Provider.parseToken("not_defined");
+            const tokenData = provider.parseToken("not_defined");
 
             results.push({
               line: pendingDocument.line,
@@ -377,4 +385,4 @@ function createHelper() {
   };
 }
 
-module.exports = Provider;
+module.exports = provider;

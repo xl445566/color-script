@@ -1,4 +1,14 @@
 function validateLine(text, isCommenting) {
+  if (
+    text.trim().replace("use strict", "").replace(";", "").length === 2 &&
+    text.includes("use strict")
+  ) {
+    return {
+      isSkip: true,
+      isCommenting,
+    };
+  }
+
   if (!text) {
     return {
       isSkip: true,
