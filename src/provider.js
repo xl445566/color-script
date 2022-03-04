@@ -11,15 +11,15 @@ const provider = makeProvider();
 const helper = makeProvdierHelpers();
 
 function makeProvider() {
-  let documents = null;
-  let pendingDocuments = null;
-  let tempraryParsedText = null;
+  let documents = {};
+  let pendingDocuments = {};
+  let tempraryParsedText = {};
   let isCommenting = false;
   let isContinue = false;
-  
+
   let tokenData = null;
   let currentOffset = 0;
-  
+
   async function provideDocumentSemanticTokens() {
     // throttle 예정
     const allTokens = parseText(
@@ -82,30 +82,6 @@ function makeProvider() {
         isCommenting = false;
       }
 
-      // tokenData, currentOffset 초기화
-      tokenData = null;
-      currentOffset = 0;
-
-      // 빈줄처리 , 주석처리
-      const validatedLineResults = validateLine(lines[i], isCommenting);
-      const isSkip = validatedLineResults.isSkip;
-      isCommenting = validatedLineResults.isCommenting;
-
-      if (isSkip || isCommenting) {
-        const processedPendingDocumentsResults = helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
-
-        continue;
-      }
-
       // Multiline 처리
       if (isContinue && lines[i]) {
         tempraryParsedText.value += lines[i];
@@ -127,26 +103,25 @@ function makeProvider() {
           isContinue = false;
         }
 
-        const processedPendingDocumentsResults = helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
-
         continue;
       } else if (isContinue && !lines[i]) {
-        // tempraryParsedText = {};
         // isContinue = false;
-
         continue;
       }
 
-      // 공백처리 , 주석처리
+      // tokenData, currentOffset 초기화
+      tokenData = null;
+      currentOffset = 0;
+
+      // 공백처리 , 주석처리 , 빈줄처리
+      const validatedLineResults = validateLine(lines[i], isCommenting);
+      const isSkip = validatedLineResults.isSkip;
+      isCommenting = validatedLineResults.isCommenting;
+
+      if (isSkip || isCommenting) {
+        continue;
+      }
+
       const trimedLineResults = trimBlankText(lines[i]);
       const trimedLine = trimedLineResults.line;
       currentOffset = trimedLineResults.count;
@@ -177,18 +152,6 @@ function makeProvider() {
         tempraryParsedText.value = definitionArea;
 
         isContinue = true;
-
-        const processedPendingDocumentsResults = helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
-
         continue;
       }
 
@@ -234,17 +197,12 @@ function makeProvider() {
               },
             ];
           } else {
-            console.log("\n");
-            console.log("line ::::", i);
-            console.log("variableName ::::", statement, variableName);
-            console.log("variableInValue ::::", variableInValue);
-            console.log("tokenData ::::", tokenData);
-
-            if (!pendingDocuments[variableName]) {
+            if (!pendingDocuments[variableInValue]) {
               // 변수 (선언 X)
-              pendingDocuments[variableName] = [
+              pendingDocuments[variableInValue] = [
                 {
-                  value: variableInValue,
+                  statement,
+                  variable: variableName,
                   line: i,
                   startPos,
                   endPos,
@@ -254,8 +212,8 @@ function makeProvider() {
               ];
             } else {
               // 선언 X 변수 중복 발견시
-              pendingDocuments[variableName].push({
-                value: variableInValue,
+              pendingDocuments[variableInValue].push({
+                variable: variableName,
                 line: i,
                 startPos,
                 endPos,
@@ -265,12 +223,52 @@ function makeProvider() {
             }
           }
         }
+
+        if (pendingDocuments[variableName] && statement === "var") {
+          while (pendingDocuments[variableName].length) {
+            const pendingDocument = pendingDocuments[variableName].shift();
+            const tempTokenData = parseToken("undefined");
+
+            results.push({
+              line: pendingDocument.line,
+              startCharacter: pendingDocument.startPos,
+              length: pendingDocument.length,
+              tokenType: tempTokenData.tokenType,
+              tokenModifiers: tempTokenData.tokenModifiers,
+            });
+
+            if (!documents[pendingDocument.variable]) {
+              documents[pendingDocument.variable] = [
+                {
+                  statement: pendingDocument.statement,
+                  value: variableName,
+                  line: pendingDocument.line,
+                  startPos: pendingDocument.startPos,
+                  endPos: pendingDocument.endPos,
+                  length: pendingDocument.endPos - pendingDocument.startPos,
+                  tokenData: tempTokenData,
+                },
+              ];
+            } else {
+              documents[pendingDocument.variable].push({
+                statement: pendingDocument.statement,
+                value: variableName,
+                line: pendingDocument.line,
+                startPos: pendingDocument.startPos,
+                endPos: pendingDocument.endPos,
+                length: pendingDocument.endPos - pendingDocument.startPos,
+                tokenData: tempTokenData,
+              });
+            }
+          }
+        }
       } else if (
         documents[declarationArea[0]] &&
         documents[declarationArea[0]][0].statement !== "const" &&
         tokenData
       ) {
-        // else if :  이미 선언된 변수 , const인 변수는 로직을 수행하지 못하도록 startPos 조정
+        // else if :  let이나 var로 선언한 변수 = "asdf"; 이렇게 하드코딩 할당 시
+        // const인 변수는 로직을 수행하지 못하도록 startPos 조정
         const variableName = declarationArea[0];
         startPos = endPos - variableName.length - 1;
 
@@ -284,8 +282,8 @@ function makeProvider() {
         });
       } else if (documents[declarationArea.slice(0, -1)] && !tokenData) {
         // else if : 변수 = 변수를 할당할 때
-        const variableInValue = definitionArea.slice(0, -1);
         const variableName = declarationArea[0];
+        const variableInValue = definitionArea.slice(0, -1);
         let latestVariableInfo = null;
         startPos = endPos - variableName.length - 1;
 
@@ -295,7 +293,7 @@ function makeProvider() {
           tokenData = latestVariableInfo.tokenData;
 
           documents[variableName].push({
-            value: definitionArea,
+            value: variableInValue,
             line: i,
             startPos,
             endPos,
@@ -303,11 +301,11 @@ function makeProvider() {
             tokenData,
           });
         } else {
-          if (!pendingDocuments[variableName]) {
-            // 선언 X 변수 처음 발견시
-            pendingDocuments[variableName] = [
+          if (!pendingDocuments[variableInValue]) {
+            // 변수 (선언 X)
+            pendingDocuments[variableInValue] = [
               {
-                value: variableInValue,
+                variable: variableName,
                 line: i,
                 startPos,
                 endPos,
@@ -317,14 +315,53 @@ function makeProvider() {
             ];
           } else {
             // 선언 X 변수 중복 발견시
-            pendingDocuments[variableName].push({
-              value: variableInValue,
+            pendingDocuments[variableInValue].push({
+              variable: variableName,
               line: i,
               startPos,
               endPos,
               length: endPos - startPos,
               tokenData: null,
             });
+          }
+        }
+
+        if (pendingDocuments[variableName] && statement === "var") {
+          while (pendingDocuments[variableName].length) {
+            const pendingDocument = pendingDocuments[variableName].shift();
+            const tempTokenData = parseToken("undefined");
+
+            results.push({
+              line: pendingDocument.line,
+              startCharacter: pendingDocument.startPos,
+              length: pendingDocument.length,
+              tokenType: tempTokenData.tokenType,
+              tokenModifiers: tempTokenData.tokenModifiers,
+            });
+
+            if (!documents[pendingDocument.variable]) {
+              documents[pendingDocument.variable] = [
+                {
+                  statement: pendingDocument.statement,
+                  value: variableName,
+                  line: pendingDocument.line,
+                  startPos: pendingDocument.startPos,
+                  endPos: pendingDocument.endPos,
+                  length: pendingDocument.endPos - pendingDocument.startPos,
+                  tokenData: tempTokenData,
+                },
+              ];
+            } else {
+              documents[pendingDocument.variable].push({
+                statement: pendingDocument.statement,
+                value: variableName,
+                line: pendingDocument.line,
+                startPos: pendingDocument.startPos,
+                endPos: pendingDocument.endPos,
+                length: pendingDocument.endPos - pendingDocument.startPos,
+                tokenData: tempTokenData,
+              });
+            }
           }
         }
       }
@@ -337,17 +374,6 @@ function makeProvider() {
           tokenType: tokenData.tokenType,
           tokenModifiers: tokenData.tokenModifiers,
         });
-      }
-
-      const processedPendingDocumentsResults = helper.processPendingDocuments(
-        i,
-        lines.length,
-        pendingDocuments,
-        documents
-      );
-
-      if (processedPendingDocumentsResults.length) {
-        results.push(...processedPendingDocumentsResults);
       }
     }
 
@@ -379,52 +405,8 @@ function makeProvdierHelpers() {
     return tokenData;
   }
 
-  function processPendingDocuments(
-    currentLine,
-    lastLine,
-    pendingDocuments,
-    documents
-  ) {
-    const keys = Object.keys(pendingDocuments);
-    const results = [];
-
-    if (currentLine === lastLine - 1) {
-      console.log("\n");
-      console.log("processPendingDocuments", processPendingDocuments);
-      console.log(documents);
-      console.log(pendingDocuments);
-
-      keys.forEach((key) => {
-        const pendingDocumentArray = pendingDocuments[key];
-
-        pendingDocumentArray.forEach((pendingDocument) => {
-          let statement = null;
-
-          if (documents[pendingDocument.value]) {
-            statement = documents[pendingDocument.value][0].statement;
-          }
-
-          if (statement === "var") {
-            const tokenData = provider.parseToken("undefined");
-
-            results.push({
-              line: pendingDocument.line,
-              startCharacter: pendingDocument.startPos,
-              length: pendingDocument.length,
-              tokenType: tokenData.tokenType,
-              tokenModifiers: tokenData.tokenModifiers,
-            });
-          }
-        });
-      });
-    }
-
-    return results;
-  }
-
   return {
     validateType,
-    processPendingDocuments,
   };
 }
 
