@@ -7,19 +7,21 @@ const {
 } = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
-const helper = Helper();
-const provider = Provider();
+const provider = makeProvider();
+const helper = makeProvdierHelpers();
 
-function Provider() {
-  let documents = {};
-  let pendingDocuments = {};
-  let tempraryParsedText = {};
-  let tokenData = null;
-  let currentOffset = 0;
+function makeProvider() {
+  let documents = null;
+  let pendingDocuments = null;
+  let tempraryParsedText = null;
   let isCommenting = false;
   let isContinue = false;
-
+  
+  let tokenData = null;
+  let currentOffset = 0;
+  
   async function provideDocumentSemanticTokens() {
+    // throttle 예정
     const allTokens = parseText(
       vscode.window.activeTextEditor.document.getText()
     );
@@ -41,8 +43,6 @@ function Provider() {
   function encodeTokenType(tokenType) {
     if (tokenTypes.has(tokenType)) {
       return tokenTypes.get(tokenType);
-    } else if (tokenType === "notInLegend") {
-      return tokenTypes.size + 2;
     }
 
     return 0;
@@ -56,8 +56,6 @@ function Provider() {
 
       if (tokenModifiers.has(tokenModifier)) {
         result = result | (1 << tokenModifiers.get(tokenModifier));
-      } else if (tokenModifier === "notInLegend") {
-        result = result | (1 << (tokenModifiers.size + 2));
       }
     }
 
@@ -82,6 +80,30 @@ function Provider() {
         tempraryParsedText = {};
         isContinue = false;
         isCommenting = false;
+      }
+
+      // tokenData, currentOffset 초기화
+      tokenData = null;
+      currentOffset = 0;
+
+      // 빈줄처리 , 주석처리
+      const validatedLineResults = validateLine(lines[i], isCommenting);
+      const isSkip = validatedLineResults.isSkip;
+      isCommenting = validatedLineResults.isCommenting;
+
+      if (isSkip || isCommenting) {
+        const processedPendingDocumentsResults = helper.processPendingDocuments(
+          i,
+          lines.length,
+          pendingDocuments,
+          documents
+        );
+
+        if (processedPendingDocumentsResults.length) {
+          results.push(...processedPendingDocumentsResults);
+        }
+
+        continue;
       }
 
       // Multiline 처리
@@ -118,36 +140,13 @@ function Provider() {
 
         continue;
       } else if (isContinue && !lines[i]) {
-        tempraryParsedText = {};
-        isContinue = false;
+        // tempraryParsedText = {};
+        // isContinue = false;
 
         continue;
       }
 
-      // tokenData, currentOffset 초기화
-      tokenData = null;
-      currentOffset = 0;
-
-      // 공백체크 , 빈줄체크 , 주석처리
-      const validatedLineResults = validateLine(lines[i], isCommenting);
-      const isSkip = validatedLineResults.isSkip;
-      isCommenting = validatedLineResults.isCommenting;
-
-      if (isSkip || isCommenting) {
-        const processedPendingDocumentsResults = helper.processPendingDocuments(
-          i,
-          lines.length,
-          pendingDocuments,
-          documents
-        );
-
-        if (processedPendingDocumentsResults.length) {
-          results.push(...processedPendingDocumentsResults);
-        }
-
-        continue;
-      }
-
+      // 공백처리 , 주석처리
       const trimedLineResults = trimBlankText(lines[i]);
       const trimedLine = trimedLineResults.line;
       currentOffset = trimedLineResults.count;
@@ -204,7 +203,7 @@ function Provider() {
         const variableInValue = definitionArea.slice(0, -1);
 
         if (tokenData) {
-          // 첫 변수선언 = 값
+          // case : 첫 변수선언 = 값
           documents[variableName] = [
             {
               statement,
@@ -217,7 +216,7 @@ function Provider() {
             },
           ];
         } else {
-          // 첫 변수선언 = 변수
+          // case : 첫 변수선언 = 변수
           if (documents[variableInValue]) {
             // 변수 (선언 O)
             const latestVariableInfo = documents[variableInValue].slice(-1)[0];
@@ -235,6 +234,12 @@ function Provider() {
               },
             ];
           } else {
+            console.log("\n");
+            console.log("line ::::", i);
+            console.log("variableName ::::", statement, variableName);
+            console.log("variableInValue ::::", variableInValue);
+            console.log("tokenData ::::", tokenData);
+
             if (!pendingDocuments[variableName]) {
               // 변수 (선언 X)
               pendingDocuments[variableName] = [
@@ -358,7 +363,7 @@ function Provider() {
   };
 }
 
-function Helper() {
+function makeProvdierHelpers() {
   function validateType(value) {
     let tokenData = null;
     const checkFunctions = [checkBooleanType, checkNumberType, checkStringType];
@@ -384,27 +389,23 @@ function Helper() {
     const results = [];
 
     if (currentLine === lastLine - 1) {
+      console.log("\n");
+      console.log("processPendingDocuments", processPendingDocuments);
+      console.log(documents);
+      console.log(pendingDocuments);
+
       keys.forEach((key) => {
         const pendingDocumentArray = pendingDocuments[key];
-        let statement = null;
 
         pendingDocumentArray.forEach((pendingDocument) => {
+          let statement = null;
+
           if (documents[pendingDocument.value]) {
             statement = documents[pendingDocument.value][0].statement;
           }
 
           if (statement === "var") {
             const tokenData = provider.parseToken("undefined");
-
-            results.push({
-              line: pendingDocument.line,
-              startCharacter: pendingDocument.startPos,
-              length: pendingDocument.length,
-              tokenType: tokenData.tokenType,
-              tokenModifiers: tokenData.tokenModifiers,
-            });
-          } else if (statement === "let" || !statement) {
-            const tokenData = provider.parseToken("not_defined");
 
             results.push({
               line: pendingDocument.line,
