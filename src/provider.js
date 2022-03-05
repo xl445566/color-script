@@ -6,6 +6,8 @@ const {
   checkStringType,
   checkNullType,
   checkUndefinedType,
+  checkArrayType,
+  checkObjectType,
 } = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
@@ -107,7 +109,6 @@ function makeProvider() {
 
         continue;
       } else if (isContinue && !lines[i]) {
-        // isContinue = false;
         continue;
       }
 
@@ -410,8 +411,18 @@ function makeProvdierHelpers() {
       checkStringType,
       checkNullType,
       checkUndefinedType,
+      checkArrayType,
+      checkObjectType,
     ];
-    const types = ["boolean", "number", "string", "null", "undefined"];
+    const types = [
+      "boolean",
+      "number",
+      "string",
+      "null",
+      "undefined",
+      "array",
+      "object",
+    ];
 
     for (let i = 0; i < checkFunctions.length; i++) {
       if (checkFunctions[i](value)) {

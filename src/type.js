@@ -41,30 +41,29 @@ function checkStringType(value) {
     isFinished
   ) {
     return true;
-  }
+  } else {
+    for (let i = 0; i < value.length; i++) {
+      const codeNumber = value.charCodeAt(i);
 
-  for (let i = 0; i < value.length; i++) {
-    const codeNumber = value.charCodeAt(i);
-
-    if (charCodes.includes(codeNumber) && !temp.includes(codeNumber)) {
-      temp.push(codeNumber);
-      charCodeCount += 1;
-    } else if (charCodes.includes(codeNumber) && temp.includes(codeNumber)) {
-      const index = temp.indexOf(codeNumber);
-
-      if (index > -1) {
-        temp.splice(index, 1);
+      if (charCodes.includes(codeNumber) && !temp.includes(codeNumber)) {
+        temp.push(codeNumber);
         charCodeCount += 1;
+      } else if (charCodes.includes(codeNumber) && temp.includes(codeNumber)) {
+        const index = temp.indexOf(codeNumber);
+
+        if (index > -1) {
+          temp.splice(index, 1);
+          charCodeCount -= 1;
+        }
       }
     }
-  }
 
-  if (!temp.length && charCodeCount > 0) {
-    return true;
+    if (!temp.length === charCodeCount && charCodes.includes(startCharCode)) {
+      temp = [];
+      charCodeCount = 0;
+      return true;
+    }
   }
-
-  temp = [];
-  charCodeCount = 0;
 
   return false;
 }
@@ -78,10 +77,37 @@ function checkNullType(value) {
 
   return false;
 }
+
 function checkUndefinedType(value) {
   const hasSemicolon = value.slice(-1) === ";";
 
   if (hasSemicolon && value.slice(0, -1) === "undefined") {
+    return true;
+  }
+
+  return false;
+}
+
+function checkArrayType(value) {
+  const hasSemicolon = value.slice(-1) === ";";
+  const code = value.slice(0, -1).trim();
+  const open = code.startsWith("[");
+  const close = code.endsWith("]");
+
+  if (hasSemicolon && open && close) {
+    return true;
+  }
+
+  return false;
+}
+
+function checkObjectType(value) {
+  const hasSemicolon = value.slice(-1) === ";";
+  const code = value.slice(0, -1).trim();
+  const open = code.startsWith("{");
+  const close = code.endsWith("}");
+
+  if (hasSemicolon && open && close) {
     return true;
   }
 
@@ -93,3 +119,5 @@ exports.checkNumberType = checkNumberType;
 exports.checkStringType = checkStringType;
 exports.checkNullType = checkNullType;
 exports.checkUndefinedType = checkUndefinedType;
+exports.checkArrayType = checkArrayType;
+exports.checkObjectType = checkObjectType;
