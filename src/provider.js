@@ -4,6 +4,8 @@ const {
   checkBooleanType,
   checkNumberType,
   checkStringType,
+  checkNullType,
+  checkUndefinedType,
 } = require("./type");
 const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
 
@@ -123,8 +125,17 @@ function makeProvider() {
       }
 
       const trimedLineResults = trimBlankText(lines[i]);
-      const trimedLine = trimedLineResults.line;
+      let trimedLine = trimedLineResults.line;
       currentOffset = trimedLineResults.count;
+
+      // undefined 처리
+      if (trimedLine.trim().split(" ").length === 2) {
+        trimedLine = helper.refactorUndefinedType(trimedLine.trim());
+
+        if (!trimedLine) {
+          continue;
+        }
+      }
 
       const removedCommentLineResults = removeComment(
         trimedLine,
@@ -135,14 +146,14 @@ function makeProvider() {
 
       // 변수 , 값 분류
       const declarationArea = convertedLineArray[0].split(" ");
-      const definitionArea = convertedLineArray[1].trim();
+      let definitionArea = convertedLineArray[1].trim();
+
+      // 변수의 값으로 Type 체크 tokenData 생성
+      tokenData = helper.validateType(definitionArea);
 
       // 변수 시작 , 종료 위치
       let startPos = currentOffset + declarationArea[0].length + 1;
       const endPos = startPos + declarationArea[1].length;
-
-      // 변수의 값으로 Type 체크 tokenData 생성
-      tokenData = helper.validateType(definitionArea);
 
       // Number Multiline , String Multiline
       if (definitionArea.slice(-1) !== ";") {
@@ -284,6 +295,7 @@ function makeProvider() {
         // else if : 변수 = 변수를 할당할 때
         const variableName = declarationArea[0];
         const variableInValue = definitionArea.slice(0, -1);
+        const statement = documents[declarationArea.slice(0, -1)][0].statement;
         let latestVariableInfo = null;
         startPos = endPos - variableName.length - 1;
 
@@ -326,7 +338,7 @@ function makeProvider() {
           }
         }
 
-        if (pendingDocuments[variableName] && statement === "var") {
+        if (pendingDocuments[variableName] && statement !== "const") {
           while (pendingDocuments[variableName].length) {
             const pendingDocument = pendingDocuments[variableName].shift();
             const tempTokenData = parseToken("undefined");
@@ -392,8 +404,14 @@ function makeProvider() {
 function makeProvdierHelpers() {
   function validateType(value) {
     let tokenData = null;
-    const checkFunctions = [checkBooleanType, checkNumberType, checkStringType];
-    const types = ["boolean", "number", "string"];
+    const checkFunctions = [
+      checkBooleanType,
+      checkNumberType,
+      checkStringType,
+      checkNullType,
+      checkUndefinedType,
+    ];
+    const types = ["boolean", "number", "string", "null", "undefined"];
 
     for (let i = 0; i < checkFunctions.length; i++) {
       if (checkFunctions[i](value)) {
@@ -405,8 +423,27 @@ function makeProvdierHelpers() {
     return tokenData;
   }
 
+  function refactorUndefinedType(value) {
+    const hasSemicolon = value.slice(-1) === ";";
+    let splitedValue = value.split(" ");
+
+    if (
+      hasSemicolon &&
+      (splitedValue[0] === "var" || splitedValue[0] === "let")
+    ) {
+      splitedValue[1] = splitedValue[1].slice(0, -1);
+      splitedValue[2] = "=";
+      splitedValue[3] = "undefined;";
+
+      return splitedValue.join(" ");
+    }
+
+    return "";
+  }
+
   return {
     validateType,
+    refactorUndefinedType,
   };
 }
 

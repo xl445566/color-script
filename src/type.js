@@ -69,6 +69,27 @@ function checkStringType(value) {
   return false;
 }
 
+function checkNullType(value) {
+  const hasSemicolon = value.slice(-1) === ";";
+
+  if (hasSemicolon && value.slice(0, -1) === "null") {
+    return true;
+  }
+
+  return false;
+}
+function checkUndefinedType(value) {
+  const hasSemicolon = value.slice(-1) === ";";
+
+  if (hasSemicolon && value.slice(0, -1) === "undefined") {
+    return true;
+  }
+
+  return false;
+}
+
 exports.checkBooleanType = checkBooleanType;
 exports.checkNumberType = checkNumberType;
 exports.checkStringType = checkStringType;
+exports.checkNullType = checkNullType;
+exports.checkUndefinedType = checkUndefinedType;
