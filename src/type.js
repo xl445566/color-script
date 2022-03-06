@@ -7,7 +7,7 @@ function checkBooleanType(value) {
 }
 
 function checkNumberType(value) {
-  if (!isNaN(value.slice(0, -1))) {
+  if (!isNaN(value.slice(0, -1)) && value !== ";") {
     return true;
   }
 
@@ -23,7 +23,7 @@ function checkNumberType(value) {
     text = text.replaceAll(symbol, "");
   });
 
-  return text === ";";
+  return text === ";" && value.trim() !== ";";
 }
 
 function checkStringType(value) {

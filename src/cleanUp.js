@@ -85,7 +85,7 @@ function trimBlankText(text) {
   }
 
   return {
-    line: splitedTextArray.join(" "),
+    line: splitedTextArray.join(" ").trim(),
     count,
   };
 }
