@@ -95,26 +95,46 @@ function makeProvider() {
           const declarationArea = tempraryParsedText.declarationArea;
           const definitionArea = tempraryParsedText.value;
 
-          console.log(declarationArea);
-          console.log(definitionArea);
+          if (
+            declarationArea[0] === "const" ||
+            declarationArea[0] === "let" ||
+            declarationArea[0] === "var"
+          ) {
+            documents[declarationArea[1]] = [
+              {
+                statement: declarationArea[0],
+                value: definitionArea,
+                line: tempraryParsedText.line,
+                startPos: tempraryParsedText.startPos,
+                endPos: tempraryParsedText.endPos,
+                length: tempraryParsedText.length,
+                tokenData,
+              },
+            ];
+          } else if (
+            documents[declarationArea[0]] &&
+            documents[declarationArea[0]][0].statement !== "const" &&
+            tokenData
+          ) {
+            const variableName = declarationArea[0];
+            tempraryParsedText.startPos =
+              tempraryParsedText.endPos - variableName.length - 1;
 
-          documents[declarationArea[1]] = [
-            {
-              statement: declarationArea[0],
+            documents[variableName].push({
               value: definitionArea,
               line: tempraryParsedText.line,
               startPos: tempraryParsedText.startPos,
               endPos: tempraryParsedText.endPos,
-              length: tempraryParsedText.length,
+              length: tempraryParsedText.endPos - tempraryParsedText.startPos,
               tokenData,
-            },
-          ];
+            });
+          }
 
           if (tokenData) {
             results.push({
               line: tempraryParsedText.line,
               startCharacter: tempraryParsedText.startPos,
-              length: tempraryParsedText.length,
+              length: tempraryParsedText.endPos - tempraryParsedText.startPos,
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
@@ -210,7 +230,6 @@ function makeProvider() {
           let values;
 
           if (documents[arrayName].slice(-1)[0].value.length < 4) {
-            console.log(documents[documents[arrayName].slice(-1)[0].value]);
             values = documents[documents[arrayName].slice(-1)[0].value]
               .slice(-1)[0]
               .value.split(",");
@@ -453,7 +472,7 @@ function makeProvider() {
         });
       }
     }
-    console.log(documents);
+
     return results;
   }
 
