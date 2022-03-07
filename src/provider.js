@@ -15,15 +15,6 @@ const provider = makeProvider();
 const helper = makeProvdierHelpers();
 
 function makeProvider() {
-  let documents = {};
-  let pendingDocuments = {};
-  let tempraryParsedText = {};
-  let isCommenting = false;
-  let isContinue = false;
-
-  let tokenData = null;
-  let currentOffset = 0;
-
   async function provideDocumentSemanticTokens() {
     // throttle 예정
     const allTokens = parseText(
@@ -77,6 +68,15 @@ function makeProvider() {
     const results = [];
     const lines = text.split(/\r\n|\r|\n/);
 
+    let documents = {};
+    let pendingDocuments = {};
+    let tempraryParsedText = {};
+    let isCommenting = false;
+    let isContinue = false;
+
+    let tokenData = null;
+    let currentOffset = 0;
+
     for (let i = 0; i < lines.length; i++) {
       if (i === 0) {
         documents = {};
@@ -92,12 +92,49 @@ function makeProvider() {
 
         if (lines[i].slice(-1) === ";") {
           tokenData = helper.validateType(tempraryParsedText.value);
+          const declarationArea = tempraryParsedText.declarationArea;
+          const definitionArea = tempraryParsedText.value;
+
+          if (
+            declarationArea[0] === "const" ||
+            declarationArea[0] === "let" ||
+            declarationArea[0] === "var"
+          ) {
+            documents[declarationArea[1]] = [
+              {
+                statement: declarationArea[0],
+                value: definitionArea,
+                line: tempraryParsedText.line,
+                startPos: tempraryParsedText.startPos,
+                endPos: tempraryParsedText.endPos,
+                length: tempraryParsedText.length,
+                tokenData,
+              },
+            ];
+          } else if (
+            documents[declarationArea[0]] &&
+            documents[declarationArea[0]][0].statement !== "const" &&
+            tokenData
+          ) {
+            const variableName = declarationArea[0];
+            tempraryParsedText.startPos =
+              tempraryParsedText.endPos - variableName.length - 1;
+
+            documents[variableName].push({
+              value: definitionArea,
+              line: tempraryParsedText.line,
+              startPos: tempraryParsedText.startPos,
+              endPos: tempraryParsedText.endPos,
+              length: tempraryParsedText.endPos - tempraryParsedText.startPos,
+              tokenData,
+            });
+          }
 
           if (tokenData) {
             results.push({
               line: tempraryParsedText.line,
-              startCharacter: tempraryParsedText.startCharacter,
-              length: tempraryParsedText.length,
+              startCharacter: tempraryParsedText.startPos,
+              length: tempraryParsedText.endPos - tempraryParsedText.startPos,
               tokenType: tokenData.tokenType,
               tokenModifiers: tokenData.tokenModifiers,
             });
@@ -130,8 +167,8 @@ function makeProvider() {
       currentOffset = trimedLineResults.count;
 
       // undefined 처리
-      if (trimedLine.trim().split(" ").length === 2) {
-        trimedLine = helper.refactorUndefinedType(trimedLine.trim());
+      if (trimedLine.split(" ").length === 2) {
+        trimedLine = helper.refactorUndefinedType(trimedLine);
 
         if (!trimedLine) {
           continue;
@@ -149,22 +186,68 @@ function makeProvider() {
       const declarationArea = convertedLineArray[0].split(" ");
       let definitionArea = convertedLineArray[1].trim();
 
-      // 변수의 값으로 Type 체크 tokenData 생성
-      tokenData = helper.validateType(definitionArea);
-
       // 변수 시작 , 종료 위치
       let startPos = currentOffset + declarationArea[0].length + 1;
       const endPos = startPos + declarationArea[1].length;
 
+      // 변수의 값으로 Type 체크 tokenData 생성
+      tokenData = helper.validateType(definitionArea);
+
       // Number Multiline , String Multiline
       if (definitionArea.slice(-1) !== ";") {
+        tempraryParsedText.declarationArea = declarationArea;
+        tempraryParsedText.definitionArea = definitionArea;
         tempraryParsedText.line = i;
-        tempraryParsedText.startCharacter = startPos;
+        tempraryParsedText.startPos = startPos;
+        tempraryParsedText.endPos = endPos;
         tempraryParsedText.length = endPos - startPos;
         tempraryParsedText.value = definitionArea;
 
         isContinue = true;
+
         continue;
+      }
+
+      // array.length , array[index]
+      if (!tokenData) {
+        if (
+          definitionArea.endsWith("length;") &&
+          definitionArea.includes(".")
+        ) {
+          const objName = definitionArea.slice(0, -1).split(".")[0];
+          if (
+            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+              "string" ||
+            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+              "array"
+          ) {
+            tokenData = parseToken("number");
+          }
+        } else if (definitionArea.endsWith("];")) {
+          const arrayName = definitionArea.split("[")[0];
+          const index = definitionArea.split("[")[1].slice(0, -2);
+
+          let values;
+
+          if (documents[arrayName].slice(-1)[0].value.length < 4) {
+            values = documents[documents[arrayName].slice(-1)[0].value]
+              .slice(-1)[0]
+              .value.split(",");
+          } else {
+            values = documents[arrayName].slice(-1)[0].value.split(",");
+          }
+
+          values[0] = values[0].slice(1);
+          values[values.length - 1] = values[values.length - 1].slice(0, -2);
+
+          const value = values[index];
+
+          tokenData = helper.validateType(value.trim() + ";");
+
+          if (!tokenData && documents[value.trim()]) {
+            tokenData = documents[value.trim()].slice(-1)[0].tokenData;
+          }
+        }
       }
 
       // if : 변수 초기선언시 const , var , let -> parsing
@@ -200,7 +283,7 @@ function makeProvider() {
             documents[variableName] = [
               {
                 statement,
-                value: definitionArea,
+                value: latestVariableInfo.value,
                 line: i,
                 startPos,
                 endPos,
@@ -306,7 +389,7 @@ function makeProvider() {
           tokenData = latestVariableInfo.tokenData;
 
           documents[variableName].push({
-            value: variableInValue,
+            value: latestVariableInfo.value,
             line: i,
             startPos,
             endPos,
@@ -435,8 +518,8 @@ function makeProvdierHelpers() {
   }
 
   function refactorUndefinedType(value) {
-    const hasSemicolon = value.slice(-1) === ";";
-    let splitedValue = value.split(" ");
+    const hasSemicolon = value.trim().slice(-1) === ";";
+    let splitedValue = value.trim().split(" ");
 
     if (
       hasSemicolon &&
