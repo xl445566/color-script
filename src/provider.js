@@ -208,7 +208,7 @@ function makeProvider() {
         continue;
       }
 
-      // array.length , array[index]
+      // array.length , array[index] , object.property
       if (!tokenData) {
         if (
           definitionArea.endsWith("length;") &&
@@ -247,6 +247,22 @@ function makeProvider() {
           if (!tokenData && documents[value.trim()]) {
             tokenData = documents[value.trim()].slice(-1)[0].tokenData;
           }
+        } else if (definitionArea.includes(".")) {
+          // object.property
+          const data = definitionArea.slice(0, -1).split(".");
+          const objName = data[0];
+          const property = data[1];
+          let value = documents[objName].slice(-1)[0].value;
+          value = value.slice(1, -2).split(",");
+          const obj = {};
+
+          value.forEach((item) => {
+            const key = item.split(":")[0].trim();
+            const value = item.split(":")[1].trim();
+            obj[key] = value;
+          });
+
+          tokenData = helper.validateType(obj[property] + ";");
         }
       }
 
@@ -472,7 +488,7 @@ function makeProvider() {
         });
       }
     }
-
+    console.log(documents);
     return results;
   }
 
