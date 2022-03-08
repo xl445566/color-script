@@ -1,3 +1,5 @@
+"use strict";
+
 const vscode = require("vscode");
 const { tokenTypes, tokenModifiers } = require("./legend");
 const {
@@ -253,14 +255,6 @@ function makeProvider() {
           if (!tokenData && documents[result]) {
             tokenData = documents[result].slice(-1)[0].tokenData;
           }
-
-          // console.log("\n");
-          // console.log("arrayName", arrayName);
-          // console.log("indexList", indexList);
-          // console.log("resultArray", resultArray);
-          // console.log("result", result);
-          // console.log("tokenData", tokenData);
-          // console.log("definitionArea", definitionArea);
         } else if (
           definitionArea.includes(".") &&
           definitionArea.slice(0, -1).split(".")[1]
@@ -269,23 +263,36 @@ function makeProvider() {
           const data = definitionArea.slice(0, -1).split(".");
           const objName = data[0];
           const propertys = data.slice(1);
-          let value = documents[objName].slice(-1)[0].value;
-          value = value.slice(1, -2).split(",");
-          const obj = {};
+          const value = documents[objName]
+            .slice(-1)[0]
+            .value.trim()
+            .slice(0, -1);
 
-          value.forEach((item) => {
-            const key = item.split(":")[0].trim();
-            const value = item.split(":")[1].trim();
-            obj[key] = value;
-          });
+          const obj = helper.evaluateObject(value);
 
-          console.log("\n");
-          console.log("data", data);
-          console.log("objName", objName);
-          console.log("propertys", propertys);
-          console.log("value", value);
+          let currentValue = null;
 
-          tokenData = helper.validateType(obj[propertys[0]] + ";");
+          if (obj) {
+            propertys.forEach((property) => {
+              if (!currentValue) {
+                currentValue = obj[property];
+              } else {
+                currentValue = currentValue[property];
+              }
+
+              let type = typeof currentValue;
+
+              if (Array.isArray(currentValue)) {
+                type = "array";
+              }
+
+              tokenData = parseToken(type);
+
+              if (!tokenData) {
+                currentValue = documents[property];
+              }
+            });
+          }
         }
       }
 
@@ -512,8 +519,6 @@ function makeProvider() {
       }
     }
 
-    console.log("\n");
-    console.log("documents", documents);
     return results;
   }
 
@@ -623,10 +628,20 @@ function makeProvdierHelpers() {
     })();
   }
 
+  function evaluateObject(value) {
+    try {
+      const func = new Function(`return ${value};`);
+      return func();
+    } catch (error) {
+      return null;
+    }
+  }
+
   return {
     validateType,
     refactorUndefinedType,
     handleMakeArray,
+    evaluateObject,
   };
 }
 
