@@ -1,3 +1,5 @@
+"use strict";
+
 const vscode = require("vscode");
 const { tokenTypes, tokenModifiers } = require("./legend");
 const {
@@ -145,8 +147,6 @@ function makeProvider() {
         }
 
         continue;
-      } else if (isContinue && !lines[i]) {
-        continue;
       }
 
       // tokenData, currentOffset 초기화
@@ -208,44 +208,90 @@ function makeProvider() {
         continue;
       }
 
-      // array.length , array[index]
+      // array.length , array[index] , object.property
       if (!tokenData) {
         if (
           definitionArea.endsWith("length;") &&
           definitionArea.includes(".")
         ) {
-          const objName = definitionArea.slice(0, -1).split(".")[0];
+          // length 경우
+          const variableName = definitionArea.slice(0, -1).split(".")[0];
+
           if (
-            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
               "string" ||
-            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
               "array"
           ) {
             tokenData = parseToken("number");
           }
         } else if (definitionArea.endsWith("];")) {
+          // array[index] 경우
           const arrayName = definitionArea.split("[")[0];
-          const index = definitionArea.split("[")[1].slice(0, -2);
+          const indexList = definitionArea
+            .split("[")
+            .slice(1)
+            .map((index) => {
+              return index.replace("]", "").replace(";", "");
+            });
+          const value = documents[arrayName].slice(-1)[0].value;
+          const resultArray = helper.handleMakeArray(value)[0];
+          let result = null;
 
-          let values;
+          indexList.forEach((index) => {
+            if (!result) {
+              result = resultArray[index];
+            } else {
+              result = result[index];
+            }
+          });
 
-          if (documents[arrayName].slice(-1)[0].value.length < 4) {
-            values = documents[documents[arrayName].slice(-1)[0].value]
-              .slice(-1)[0]
-              .value.split(",");
+          if (Array.isArray(result)) {
+            tokenData = parseToken("array");
           } else {
-            values = documents[arrayName].slice(-1)[0].value.split(",");
+            tokenData = helper.validateType(result + ";");
           }
 
-          values[0] = values[0].slice(1);
-          values[values.length - 1] = values[values.length - 1].slice(0, -2);
+          if (!tokenData && documents[result]) {
+            tokenData = documents[result].slice(-1)[0].tokenData;
+          }
+        } else if (
+          definitionArea.includes(".") &&
+          definitionArea.slice(0, -1).split(".")[1]
+        ) {
+          // object.property
+          const data = definitionArea.slice(0, -1).split(".");
+          const objName = data[0];
+          const propertys = data.slice(1);
+          const value = documents[objName]
+            .slice(-1)[0]
+            .value.trim()
+            .slice(0, -1);
 
-          const value = values[index];
+          const obj = helper.evaluateObject(value);
 
-          tokenData = helper.validateType(value.trim() + ";");
+          let currentValue = null;
 
-          if (!tokenData && documents[value.trim()]) {
-            tokenData = documents[value.trim()].slice(-1)[0].tokenData;
+          if (obj) {
+            propertys.forEach((property) => {
+              if (!currentValue) {
+                currentValue = obj[property];
+              } else {
+                currentValue = currentValue[property];
+              }
+
+              let type = typeof currentValue;
+
+              if (Array.isArray(currentValue)) {
+                type = "array";
+              }
+
+              tokenData = parseToken(type);
+
+              if (!tokenData) {
+                currentValue = documents[property];
+              }
+            });
           }
         }
       }
@@ -535,9 +581,67 @@ function makeProvdierHelpers() {
     return "";
   }
 
+  function handleMakeArray(value) {
+    const queue = value.slice().split("");
+    let bracketPoint = -1;
+
+    return (function makeArray() {
+      let results = [];
+      let sum = "";
+
+      while (queue.length) {
+        const char = queue.shift();
+
+        if (char === "{") {
+          bracketPoint += 1;
+        }
+
+        if (char === "}") {
+          bracketPoint -= 1;
+        }
+
+        if (char === "[" && bracketPoint === -1) {
+          results = [...results, [...makeArray()]];
+          continue;
+        }
+
+        if (char === "]" && bracketPoint === -1) {
+          if (sum !== " ") {
+            results.push(sum.trim());
+          }
+          sum = "";
+          break;
+        }
+
+        if (char === "," && bracketPoint === -1) {
+          if (sum !== " ") {
+            results.push(sum.trim());
+          }
+          sum = "";
+          continue;
+        }
+
+        sum += char;
+      }
+
+      return results;
+    })();
+  }
+
+  function evaluateObject(value) {
+    try {
+      const func = new Function(`return ${value};`);
+      return func();
+    } catch (error) {
+      return null;
+    }
+  }
+
   return {
     validateType,
     refactorUndefinedType,
+    handleMakeArray,
+    evaluateObject,
   };
 }
 
