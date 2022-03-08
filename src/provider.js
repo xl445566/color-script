@@ -145,8 +145,6 @@ function makeProvider() {
         }
 
         continue;
-      } else if (isContinue && !lines[i]) {
-        continue;
       }
 
       // tokenData, currentOffset 초기화
@@ -214,44 +212,63 @@ function makeProvider() {
           definitionArea.endsWith("length;") &&
           definitionArea.includes(".")
         ) {
-          const objName = definitionArea.slice(0, -1).split(".")[0];
+          // length 경우
+          const variableName = definitionArea.slice(0, -1).split(".")[0];
+
           if (
-            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
               "string" ||
-            documents[objName].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
               "array"
           ) {
             tokenData = parseToken("number");
           }
         } else if (definitionArea.endsWith("];")) {
+          // array[index] 경우
           const arrayName = definitionArea.split("[")[0];
-          const index = definitionArea.split("[")[1].slice(0, -2);
+          const indexList = definitionArea
+            .split("[")
+            .slice(1)
+            .map((index) => {
+              return index.replace("]", "").replace(";", "");
+            });
+          const value = documents[arrayName].slice(-1)[0].value;
+          const resultArray = helper.handleMakeArray(value)[0];
+          let result = null;
 
-          let values;
+          indexList.forEach((index) => {
+            if (!result) {
+              result = resultArray[index];
+            } else {
+              result = result[index];
+            }
+          });
 
-          if (documents[arrayName].slice(-1)[0].value.length < 4) {
-            values = documents[documents[arrayName].slice(-1)[0].value]
-              .slice(-1)[0]
-              .value.split(",");
+          if (Array.isArray(result)) {
+            tokenData = parseToken("array");
           } else {
-            values = documents[arrayName].slice(-1)[0].value.split(",");
+            tokenData = helper.validateType(result + ";");
           }
 
-          values[0] = values[0].slice(1);
-          values[values.length - 1] = values[values.length - 1].slice(0, -2);
-
-          const value = values[index];
-
-          tokenData = helper.validateType(value.trim() + ";");
-
-          if (!tokenData && documents[value.trim()]) {
-            tokenData = documents[value.trim()].slice(-1)[0].tokenData;
+          if (!tokenData && documents[result]) {
+            tokenData = documents[result].slice(-1)[0].tokenData;
           }
-        } else if (definitionArea.includes(".")) {
+
+          // console.log("\n");
+          // console.log("arrayName", arrayName);
+          // console.log("indexList", indexList);
+          // console.log("resultArray", resultArray);
+          // console.log("result", result);
+          // console.log("tokenData", tokenData);
+          // console.log("definitionArea", definitionArea);
+        } else if (
+          definitionArea.includes(".") &&
+          definitionArea.slice(0, -1).split(".")[1]
+        ) {
           // object.property
           const data = definitionArea.slice(0, -1).split(".");
           const objName = data[0];
-          const property = data[1];
+          const propertys = data.slice(1);
           let value = documents[objName].slice(-1)[0].value;
           value = value.slice(1, -2).split(",");
           const obj = {};
@@ -262,7 +279,13 @@ function makeProvider() {
             obj[key] = value;
           });
 
-          tokenData = helper.validateType(obj[property] + ";");
+          console.log("\n");
+          console.log("data", data);
+          console.log("objName", objName);
+          console.log("propertys", propertys);
+          console.log("value", value);
+
+          tokenData = helper.validateType(obj[propertys[0]] + ";");
         }
       }
 
@@ -488,7 +511,9 @@ function makeProvider() {
         });
       }
     }
-    console.log(documents);
+
+    console.log("\n");
+    console.log("documents", documents);
     return results;
   }
 
@@ -551,9 +576,57 @@ function makeProvdierHelpers() {
     return "";
   }
 
+  function handleMakeArray(value) {
+    const queue = value.slice().split("");
+    let bracketPoint = -1;
+
+    return (function makeArray() {
+      let results = [];
+      let sum = "";
+
+      while (queue.length) {
+        const char = queue.shift();
+
+        if (char === "{") {
+          bracketPoint += 1;
+        }
+
+        if (char === "}") {
+          bracketPoint -= 1;
+        }
+
+        if (char === "[" && bracketPoint === -1) {
+          results = [...results, [...makeArray()]];
+          continue;
+        }
+
+        if (char === "]" && bracketPoint === -1) {
+          if (sum !== " ") {
+            results.push(sum.trim());
+          }
+          sum = "";
+          break;
+        }
+
+        if (char === "," && bracketPoint === -1) {
+          if (sum !== " ") {
+            results.push(sum.trim());
+          }
+          sum = "";
+          continue;
+        }
+
+        sum += char;
+      }
+
+      return results;
+    })();
+  }
+
   return {
     validateType,
     refactorUndefinedType,
+    handleMakeArray,
   };
 }
 
