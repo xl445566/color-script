@@ -1,5 +1,6 @@
-function validateLine(text, isComment) {
+function cleanLine(text, isComment) {
   let isCommenting = isComment;
+
   if (
     text.trim().replace("use strict", "").replace(";", "").length === 2 &&
     text.includes("use strict")
@@ -68,7 +69,7 @@ function validateLine(text, isComment) {
   };
 }
 
-function trimBlankText(text) {
+function cleanBlank(text) {
   let isBlank = true;
   let count = 0;
   const splitedTextArray = text.split(" ");
@@ -90,7 +91,7 @@ function trimBlankText(text) {
   };
 }
 
-function removeComment(text, currentOffset) {
+function cleanComment(text, currentOffset) {
   const isSlashComment = text.split(";")[1];
   let count = currentOffset;
 
@@ -117,6 +118,6 @@ function removeComment(text, currentOffset) {
   };
 }
 
-exports.validateLine = validateLine;
-exports.trimBlankText = trimBlankText;
-exports.removeComment = removeComment;
+exports.cleanLine = cleanLine;
+exports.cleanBlank = cleanBlank;
+exports.cleanComment = cleanComment;
