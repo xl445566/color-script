@@ -11,30 +11,35 @@ const {
   checkArrayType,
   checkObjectType,
 } = require("./type");
-const { validateLine, trimBlankText, removeComment } = require("./cleanUp");
+const { cleanLine, cleanBlank, cleanComment } = require("./cleanUp");
+const { cloneDeep } = require("./utils");
 
 const provider = makeProvider();
 const helper = makeProvdierHelpers();
 
 function makeProvider() {
   async function provideDocumentSemanticTokens() {
-    // throttle 예정
-    const allTokens = parseText(
-      vscode.window.activeTextEditor.document.getText()
-    );
-    const builder = new vscode.SemanticTokensBuilder();
+    try {
+      const allTokens = parseText(
+        vscode.window.activeTextEditor.document.getText(),
+        0
+      ).tokens;
+      const builder = new vscode.SemanticTokensBuilder();
 
-    allTokens.forEach((token) => {
-      builder.push(
-        token.line,
-        token.startCharacter,
-        token.length,
-        encodeTokenType(token.tokenType),
-        encodeTokenModifiers(token.tokenModifiers)
-      );
-    });
+      allTokens.forEach((token) => {
+        builder.push(
+          token.line,
+          token.startCharacter,
+          token.length,
+          encodeTokenType(token.tokenType),
+          encodeTokenModifiers(token.tokenModifiers)
+        );
+      });
 
-    return builder.build();
+      return builder.build();
+    } catch (error) {
+      console.log("PARSE TEXT ERROR ::::", error);
+    }
   }
 
   function encodeTokenType(tokenType) {
@@ -66,34 +71,36 @@ function makeProvider() {
     };
   }
 
-  function parseText(text) {
-    const results = [];
+  function parseText(text, start, docs, pendingDocs) {
     const lines = text.split(/\r\n|\r|\n/);
 
-    let documents = {};
-    let pendingDocuments = {};
+    const results = [];
+    let documents = docs === undefined ? {} : docs;
+    let pendingDocuments = pendingDocs === undefined ? {} : pendingDocs;
     let tempraryParsedText = {};
-    let isCommenting = false;
-    let isContinue = false;
 
     let tokenData = null;
     let currentOffset = 0;
 
+    let isCommenting = false;
+    let isContinue = false;
+
+    let isStartScope = false;
+    let isScope = false;
+    let isFinishScope = false;
+
+    let scopeValue = "";
+    let scopeLineNumber = 0;
+
     for (let i = 0; i < lines.length; i++) {
-      if (i === 0) {
-        documents = {};
-        pendingDocuments = {};
-        tempraryParsedText = {};
-        isContinue = false;
-        isCommenting = false;
-      }
+      const line = lines[i];
 
       // Multiline 처리
-      if (isContinue && lines[i]) {
-        tempraryParsedText.value += lines[i];
+      if (isContinue && line) {
+        tempraryParsedText.value += line;
 
-        if (lines[i].slice(-1) === ";") {
-          tokenData = helper.validateType(tempraryParsedText.value);
+        if (line.slice(-1) === ";") {
+          tokenData = helper.handleLineTypeValidate(tempraryParsedText.value);
           const declarationArea = tempraryParsedText.declarationArea;
           const definitionArea = tempraryParsedText.value;
 
@@ -149,12 +156,87 @@ function makeProvider() {
         continue;
       }
 
+      // 스코프
+      const resultScope = helper.handleScopeCreate(
+        line,
+        isStartScope,
+        isFinishScope,
+        isScope
+      );
+      isStartScope = resultScope.isStartScope;
+      isFinishScope = resultScope.isFinishScope;
+
+      console.log("\n");
+      console.log("line", line);
+      console.log("isStartScope", isStartScope);
+      console.log("isScope", isScope);
+      console.log("isFinishScope", isFinishScope);
+
+      if (isStartScope && !isFinishScope && !isScope) {
+        isScope = true;
+        scopeLineNumber = start + i + 1;
+        continue;
+      }
+
+      if (isScope && !isFinishScope) {
+        if (!isStartScope) {
+          scopeLineNumber = start + i;
+          isStartScope = true;
+        }
+        scopeValue += line + "\n";
+        continue;
+      }
+
+      if (isFinishScope) {
+        // 스코프 코드 재귀
+        const copyDocument = cloneDeep(documents);
+        const copyPendingDocuments = cloneDeep(pendingDocuments);
+        const parsedTextResults = parseText(
+          scopeValue,
+          scopeLineNumber,
+          copyDocument,
+          copyPendingDocuments
+        );
+
+        // 초기화
+        if (!isStartScope) {
+          isScope = true;
+        } else {
+          isScope = false;
+        }
+        isStartScope = false;
+        isFinishScope = false;
+        scopeLineNumber = 0;
+        scopeValue = "";
+
+        // 스코프 tokens 추가
+        results.push(...parsedTextResults.tokens);
+
+        // 스코프 documents 추가
+        for (const key in parsedTextResults.dom) {
+          if (parsedTextResults.dom[key][0].statement === "var") {
+            const document = {
+              [key]: parsedTextResults.dom[key],
+            };
+            documents = Object.assign(documents, document);
+          }
+        }
+
+        // 스코프 pendingDocuments 추가
+        pendingDocuments = Object.assign(
+          pendingDocuments,
+          parsedTextResults.pendingDom
+        );
+
+        continue;
+      }
+
       // tokenData, currentOffset 초기화
       tokenData = null;
       currentOffset = 0;
 
       // 공백처리 , 주석처리 , 빈줄처리
-      const validatedLineResults = validateLine(lines[i], isCommenting);
+      const validatedLineResults = cleanLine(line, isCommenting);
       const isSkip = validatedLineResults.isSkip;
       isCommenting = validatedLineResults.isCommenting;
 
@@ -162,23 +244,20 @@ function makeProvider() {
         continue;
       }
 
-      const trimedLineResults = trimBlankText(lines[i]);
+      const trimedLineResults = cleanBlank(line);
       let trimedLine = trimedLineResults.line;
       currentOffset = trimedLineResults.count;
 
       // undefined 처리
       if (trimedLine.split(" ").length === 2) {
-        trimedLine = helper.refactorUndefinedType(trimedLine);
+        trimedLine = helper.handleUndefinedType(trimedLine);
 
         if (!trimedLine) {
           continue;
         }
       }
 
-      const removedCommentLineResults = removeComment(
-        trimedLine,
-        currentOffset
-      );
+      const removedCommentLineResults = cleanComment(trimedLine, currentOffset);
       const convertedLineArray = removedCommentLineResults.line.split("=");
       currentOffset = removedCommentLineResults.count;
 
@@ -191,13 +270,13 @@ function makeProvider() {
       const endPos = startPos + declarationArea[1].length;
 
       // 변수의 값으로 Type 체크 tokenData 생성
-      tokenData = helper.validateType(definitionArea);
+      tokenData = helper.handleLineTypeValidate(definitionArea);
 
       // Number Multiline , String Multiline
       if (definitionArea.slice(-1) !== ";") {
         tempraryParsedText.declarationArea = declarationArea;
         tempraryParsedText.definitionArea = definitionArea;
-        tempraryParsedText.line = i;
+        tempraryParsedText.line = i + start;
         tempraryParsedText.startPos = startPos;
         tempraryParsedText.endPos = endPos;
         tempraryParsedText.length = endPos - startPos;
@@ -235,7 +314,7 @@ function makeProvider() {
               return index.replace("]", "").replace(";", "");
             });
           const value = documents[arrayName].slice(-1)[0].value;
-          const resultArray = helper.handleMakeArray(value)[0];
+          const resultArray = helper.handleArrayCreate(value)[0];
           let result = null;
 
           indexList.forEach((index) => {
@@ -249,7 +328,7 @@ function makeProvider() {
           if (Array.isArray(result)) {
             tokenData = parseToken("array");
           } else {
-            tokenData = helper.validateType(result + ";");
+            tokenData = helper.handleLineTypeValidate(result + ";");
           }
 
           if (!tokenData && documents[result]) {
@@ -268,7 +347,7 @@ function makeProvider() {
             .value.trim()
             .slice(0, -1);
 
-          const obj = helper.evaluateObject(value);
+          const obj = helper.handleObjectEvaluate(value);
 
           let currentValue = null;
 
@@ -312,7 +391,7 @@ function makeProvider() {
             {
               statement,
               value: definitionArea,
-              line: i,
+              line: i + start,
               startPos,
               endPos,
               length: endPos - startPos,
@@ -330,7 +409,7 @@ function makeProvider() {
               {
                 statement,
                 value: latestVariableInfo.value,
-                line: i,
+                line: i + start,
                 startPos,
                 endPos,
                 length: endPos - startPos,
@@ -344,7 +423,7 @@ function makeProvider() {
                 {
                   statement,
                   variable: variableName,
-                  line: i,
+                  line: i + start,
                   startPos,
                   endPos,
                   length: endPos - startPos,
@@ -355,7 +434,7 @@ function makeProvider() {
               // 선언 X 변수 중복 발견시
               pendingDocuments[variableInValue].push({
                 variable: variableName,
-                line: i,
+                line: i + start,
                 startPos,
                 endPos,
                 length: endPos - startPos,
@@ -415,7 +494,7 @@ function makeProvider() {
 
         documents[variableName].push({
           value: definitionArea,
-          line: i,
+          line: i + start,
           startPos,
           endPos,
           length: endPos - startPos,
@@ -436,7 +515,7 @@ function makeProvider() {
 
           documents[variableName].push({
             value: latestVariableInfo.value,
-            line: i,
+            line: i + start,
             startPos,
             endPos,
             length: endPos - startPos,
@@ -448,7 +527,7 @@ function makeProvider() {
             pendingDocuments[variableInValue] = [
               {
                 variable: variableName,
-                line: i,
+                line: i + start,
                 startPos,
                 endPos,
                 length: endPos - startPos,
@@ -459,7 +538,7 @@ function makeProvider() {
             // 선언 X 변수 중복 발견시
             pendingDocuments[variableInValue].push({
               variable: variableName,
-              line: i,
+              line: i + start,
               startPos,
               endPos,
               length: endPos - startPos,
@@ -510,7 +589,7 @@ function makeProvider() {
 
       if (tokenData) {
         results.push({
-          line: i,
+          line: i + start,
           startCharacter: startPos,
           length: endPos - startPos,
           tokenType: tokenData.tokenType,
@@ -519,7 +598,16 @@ function makeProvider() {
       }
     }
 
-    return results;
+    console.log("\n");
+    console.log("최종결과 Pendong Documents : ", pendingDocuments);
+    console.log("최종결과 Documents : ", documents);
+    console.log("최종결과 Results : ", results);
+
+    return {
+      tokens: results,
+      dom: documents,
+      pendingDom: pendingDocuments,
+    };
   }
 
   return {
@@ -532,7 +620,7 @@ function makeProvider() {
 }
 
 function makeProvdierHelpers() {
-  function validateType(value) {
+  function handleLineTypeValidate(value) {
     let tokenData = null;
     const checkFunctions = [
       checkBooleanType,
@@ -563,7 +651,7 @@ function makeProvdierHelpers() {
     return tokenData;
   }
 
-  function refactorUndefinedType(value) {
+  function handleUndefinedType(value) {
     const hasSemicolon = value.trim().slice(-1) === ";";
     let splitedValue = value.trim().split(" ");
 
@@ -581,7 +669,7 @@ function makeProvdierHelpers() {
     return "";
   }
 
-  function handleMakeArray(value) {
+  function handleArrayCreate(value) {
     const queue = value.slice().split("");
     let bracketPoint = -1;
 
@@ -628,7 +716,7 @@ function makeProvdierHelpers() {
     })();
   }
 
-  function evaluateObject(value) {
+  function handleObjectEvaluate(value) {
     try {
       const func = new Function(`return ${value};`);
       return func();
@@ -637,11 +725,40 @@ function makeProvdierHelpers() {
     }
   }
 
+  function handleScopeCreate(value, isStartScope, isFinishScope, isScope) {
+    if (
+      value.includes("if (") ||
+      value.includes("else if (") ||
+      (value.includes("else {") && !isScope) ||
+      value.includes("for (") ||
+      value.includes("while (")
+    ) {
+      isStartScope = true;
+    }
+
+    if (value.trim() === "}") {
+      isFinishScope = true;
+    } else if (
+      value.includes("else if (") ||
+      value.includes("else {") ||
+      (value.includes("if (") && isScope)
+    ) {
+      isStartScope = false;
+      isFinishScope = true;
+    }
+
+    return {
+      isStartScope,
+      isFinishScope,
+    };
+  }
+
   return {
-    validateType,
-    refactorUndefinedType,
-    handleMakeArray,
-    evaluateObject,
+    handleLineTypeValidate,
+    handleUndefinedType,
+    handleArrayCreate,
+    handleObjectEvaluate,
+    handleScopeCreate,
   };
 }
 
