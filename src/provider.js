@@ -729,7 +729,9 @@ function makeProvdierHelpers() {
     if (
       value.includes("if (") ||
       value.includes("else if (") ||
-      (value.includes("else {") && !isScope)
+      (value.includes("else {") && !isScope) ||
+      value.includes("for (") ||
+      value.includes("while (")
     ) {
       isStartScope = true;
     }
