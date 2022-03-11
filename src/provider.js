@@ -157,7 +157,12 @@ function makeProvider() {
       }
 
       // 스코프
-      const resultScope = helper.handleScope(line, isStartScope, isFinishScope);
+      const resultScope = helper.handleScopeCreate(
+        line,
+        isStartScope,
+        isFinishScope,
+        isScope
+      );
       isStartScope = resultScope.isStartScope;
       isFinishScope = resultScope.isFinishScope;
 
@@ -210,10 +215,10 @@ function makeProvider() {
         // 스코프 documents 추가
         for (const key in parsedTextResults.dom) {
           if (parsedTextResults.dom[key][0].statement === "var") {
-            const obj = {
+            const document = {
               [key]: parsedTextResults.dom[key],
             };
-            documents = Object.assign(documents, obj);
+            documents = Object.assign(documents, document);
           }
         }
 
@@ -720,20 +725,22 @@ function makeProvdierHelpers() {
     }
   }
 
-  function handleScope(value, isStartScope, isFinishScope) {
+  function handleScopeCreate(value, isStartScope, isFinishScope, isScope) {
     if (
       value.includes("if (") ||
       value.includes("else if (") ||
-      value.includes("else {")
+      (value.includes("else {") && !isScope)
     ) {
       isStartScope = true;
     }
 
     if (value.trim() === "}") {
       isFinishScope = true;
-    }
-
-    if (value.includes("else if (") || value.includes("else {")) {
+    } else if (
+      value.includes("else if (") ||
+      value.includes("else {") ||
+      (value.includes("if (") && isScope)
+    ) {
       isStartScope = false;
       isFinishScope = true;
     }
@@ -749,7 +756,7 @@ function makeProvdierHelpers() {
     handleUndefinedType,
     handleArrayCreate,
     handleObjectEvaluate,
-    handleScope,
+    handleScopeCreate,
   };
 }
 
