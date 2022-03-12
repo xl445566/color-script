@@ -71,13 +71,13 @@ function makeProvider() {
     };
   }
 
-  function parseText(text, start, docs, pendingDocs, scopeDocs) {
+  function parseText(text, start, docs, pendingDocs) {
     const lines = text.split(/\r\n|\r|\n/);
 
     const results = [];
     let documents = docs === undefined ? {} : docs;
     let pendingDocuments = pendingDocs === undefined ? {} : pendingDocs;
-    let scopeDocuments = scopeDocs === undefined ? {} : scopeDocs;
+    let scopeDocuments = {};
     let tempraryParsedText = {};
 
     let tokenData = null;
@@ -174,6 +174,7 @@ function makeProvider() {
 
       isStartScope = resultScope.isStartScope;
       isFinishScope = resultScope.isFinishScope;
+      isScope = resultScope.isScope;
       isStartFunctionScope = resultScope.isStartFunctionScope;
       isFinishFunctionScope = resultScope.isFinishFunctionScope;
 
@@ -183,10 +184,10 @@ function makeProvider() {
       console.log("isStartScope", isStartScope);
       console.log("isFinishScope", isFinishScope);
       console.log("isScope", isScope);
-      console.log("----------------------------------------");
-      console.log("isStartFunctionScope", isStartFunctionScope);
-      console.log("isFinishFunctionScope", isFinishFunctionScope);
-      console.log("isFunctionScope", isFunctionScope);
+      // console.log("----------------------------------------");
+      // console.log("isStartFunctionScope", isStartFunctionScope);
+      // console.log("isFinishFunctionScope", isFinishFunctionScope);
+      // console.log("isFunctionScope", isFunctionScope);
 
       if (isStartScope && !isFinishScope && !isScope) {
         isScope = true;
@@ -215,7 +216,7 @@ function makeProvider() {
         );
 
         // 초기화
-        if (!isStartScope && scopeValue) {
+        if (!isStartScope) {
           isScope = true;
         } else {
           isScope = false;
@@ -827,13 +828,15 @@ function makeProvdierHelpers() {
         isFinishFunctionScope = true;
       } else {
         isFinishScope = true;
+        isStartScope = true;
+        isScope = false;
       }
     } else if (
       value.includes("if (") ||
       value.includes("else if (") ||
       value.includes("else {") ||
-      value.includes("for (") ||
-      value.includes("while (")
+      (value.includes("for (") && isScope) ||
+      (value.includes("while (") && isScope)
     ) {
       isStartScope = false;
       isFinishScope = true;
@@ -842,6 +845,7 @@ function makeProvdierHelpers() {
     return {
       isStartScope,
       isFinishScope,
+      isScope,
       isStartFunctionScope,
       isFinishFunctionScope,
     };
