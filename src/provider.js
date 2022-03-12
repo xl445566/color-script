@@ -71,12 +71,13 @@ function makeProvider() {
     };
   }
 
-  function parseText(text, start, docs, pendingDocs) {
+  function parseText(text, start, docs, pendingDocs, scopeDocs) {
     const lines = text.split(/\r\n|\r|\n/);
 
     const results = [];
     let documents = docs === undefined ? {} : docs;
     let pendingDocuments = pendingDocs === undefined ? {} : pendingDocs;
+    let scopeDocuments = scopeDocs === undefined ? {} : scopeDocs;
     let tempraryParsedText = {};
 
     let tokenData = null;
@@ -88,6 +89,10 @@ function makeProvider() {
     let isStartScope = false;
     let isScope = false;
     let isFinishScope = false;
+
+    let isStartFunctionScope = false;
+    let isFunctionScope = false;
+    let isFinishFunctionScope = false;
 
     let scopeValue = "";
     let scopeLineNumber = 0;
@@ -161,19 +166,36 @@ function makeProvider() {
         line,
         isStartScope,
         isFinishScope,
-        isScope
+        isScope,
+        isStartFunctionScope,
+        isFinishFunctionScope,
+        isFunctionScope
       );
+
       isStartScope = resultScope.isStartScope;
       isFinishScope = resultScope.isFinishScope;
 
-      console.log("\n");
-      console.log("line", line);
-      console.log("isStartScope", isStartScope);
-      console.log("isScope", isScope);
-      console.log("isFinishScope", isFinishScope);
+      isStartFunctionScope = resultScope.isStartFunctionScope;
+      isFinishFunctionScope = resultScope.isFinishFunctionScope;
+
+      // console.log("\n");
+      // console.log("line", line);
+      // console.log("isStartScope", isStartScope);
+      // console.log("isFinishScope", isFinishScope);
+      // console.log("isScope", isScope);
+      // console.log("----------------------------------------");
+      // console.log("isStartFunctionScope", isStartFunctionScope);
+      // console.log("isFinishFunctionScope", isFinishFunctionScope);
+      // console.log("isFunctionScope", isFunctionScope);
 
       if (isStartScope && !isFinishScope && !isScope) {
         isScope = true;
+        scopeLineNumber = start + i + 1;
+        continue;
+      }
+
+      if (isStartFunctionScope && !isFinishFunctionScope && !isFunctionScope) {
+        isFunctionScope = true;
         scopeLineNumber = start + i + 1;
         continue;
       }
@@ -187,14 +209,34 @@ function makeProvider() {
         continue;
       }
 
+      if (isFunctionScope && !isFinishFunctionScope) {
+        // if (!isFunctionScope) {
+        //   scopeLineNumber = start + i;
+        //   isFunctionScope = true;
+        // }
+        scopeValue += line + "\n";
+        continue;
+      }
+
       if (isFinishScope) {
         // 스코프 코드 재귀
-        const copyDocument = cloneDeep(documents);
+        // const copyDocument = cloneDeep(documents);
+        // const parsedTextResults = parseText(
+        //   scopeValue,
+        //   scopeLineNumber,
+        //   copyDocument,
+        //   copyPendingDocuments,
+        //   copyScopeDocuments
+        // );
         const copyPendingDocuments = cloneDeep(pendingDocuments);
+        const copyScopeDocuments = cloneDeep(scopeDocuments);
+
+        console.log("test", copyScopeDocuments);
+
         const parsedTextResults = parseText(
           scopeValue,
           scopeLineNumber,
-          copyDocument,
+          copyScopeDocuments,
           copyPendingDocuments
         );
 
@@ -221,6 +263,7 @@ function makeProvider() {
             documents = Object.assign(documents, document);
           }
         }
+        scopeDocuments = Object.assign(scopeDocuments, parsedTextResults.dom);
 
         // 스코프 pendingDocuments 추가
         pendingDocuments = Object.assign(
@@ -228,6 +271,48 @@ function makeProvider() {
           parsedTextResults.pendingDom
         );
 
+        continue;
+      }
+
+      if (isFinishFunctionScope) {
+        // 함수 스코프 코드 재귀
+        const copyDocument = cloneDeep(documents);
+        // const copyPendingDocuments = cloneDeep(pendingDocuments);
+        const parsedTextResults = parseText(
+          scopeValue,
+          scopeLineNumber,
+          copyDocument
+        );
+
+        // 초기화
+        if (!isStartFunctionScope) {
+          isFunctionScope = true;
+        } else {
+          isFunctionScope = false;
+        }
+        isStartFunctionScope = false;
+        isFinishFunctionScope = false;
+        scopeLineNumber = 0;
+        scopeValue = "";
+
+        // 스코프 tokens 추가
+        results.push(...parsedTextResults.tokens);
+
+        // 스코프 documents 추가
+        // for (const key in parsedTextResults.dom) {
+        //   if (parsedTextResults.dom[key][0].statement === "var") {
+        //     const document = {
+        //       [key]: parsedTextResults.dom[key],
+        //     };
+        //     documents = Object.assign(documents, document);
+        //   }
+        // }
+
+        // 스코프 pendingDocuments 추가
+        // pendingDocuments = Object.assign(
+        //   pendingDocuments,
+        //   parsedTextResults.pendingDom
+        // );
         continue;
       }
 
@@ -725,7 +810,15 @@ function makeProvdierHelpers() {
     }
   }
 
-  function handleScopeCreate(value, isStartScope, isFinishScope, isScope) {
+  function handleScopeCreate(
+    value,
+    isStartScope,
+    isFinishScope,
+    isScope,
+    isStartFunctionScope,
+    isFinishFunctionScope,
+    isFunctionScope
+  ) {
     if (
       value.includes("if (") ||
       value.includes("else if (") ||
@@ -736,12 +829,22 @@ function makeProvdierHelpers() {
       isStartScope = true;
     }
 
+    if (value.includes("function") && value.includes("(")) {
+      isStartFunctionScope = true;
+    }
+
     if (value.trim() === "}") {
-      isFinishScope = true;
+      if (isFunctionScope) {
+        isFinishFunctionScope = true;
+      } else {
+        isFinishScope = true;
+      }
     } else if (
       value.includes("else if (") ||
       value.includes("else {") ||
-      (value.includes("if (") && isScope)
+      (value.includes("if (") && isScope) ||
+      value.includes("for (") ||
+      value.includes("while (")
     ) {
       isStartScope = false;
       isFinishScope = true;
@@ -750,6 +853,25 @@ function makeProvdierHelpers() {
     return {
       isStartScope,
       isFinishScope,
+      isStartFunctionScope,
+      isFinishFunctionScope,
+    };
+  }
+
+  function handleFunctionScopeCreate(
+    value,
+    isStartFunctionScope,
+    isFinishFunctionScope
+  ) {
+    if (value.includes("function")) {
+      isStartFunctionScope = true;
+    } else if (value.trim() === "}") {
+      isFinishFunctionScope = true;
+    }
+
+    return {
+      isStartFunctionScope,
+      isFinishFunctionScope,
     };
   }
 
@@ -759,6 +881,7 @@ function makeProvdierHelpers() {
     handleArrayCreate,
     handleObjectEvaluate,
     handleScopeCreate,
+    handleFunctionScopeCreate,
   };
 }
 
