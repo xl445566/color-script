@@ -174,28 +174,22 @@ function makeProvider() {
 
       isStartScope = resultScope.isStartScope;
       isFinishScope = resultScope.isFinishScope;
-
       isStartFunctionScope = resultScope.isStartFunctionScope;
       isFinishFunctionScope = resultScope.isFinishFunctionScope;
 
-      // console.log("\n");
-      // console.log("line", line);
-      // console.log("isStartScope", isStartScope);
-      // console.log("isFinishScope", isFinishScope);
-      // console.log("isScope", isScope);
-      // console.log("----------------------------------------");
-      // console.log("isStartFunctionScope", isStartFunctionScope);
-      // console.log("isFinishFunctionScope", isFinishFunctionScope);
-      // console.log("isFunctionScope", isFunctionScope);
+      console.log("\n");
+      console.log("line", line);
+      console.log("----------------------------------------");
+      console.log("isStartScope", isStartScope);
+      console.log("isFinishScope", isFinishScope);
+      console.log("isScope", isScope);
+      console.log("----------------------------------------");
+      console.log("isStartFunctionScope", isStartFunctionScope);
+      console.log("isFinishFunctionScope", isFinishFunctionScope);
+      console.log("isFunctionScope", isFunctionScope);
 
       if (isStartScope && !isFinishScope && !isScope) {
         isScope = true;
-        scopeLineNumber = start + i + 1;
-        continue;
-      }
-
-      if (isStartFunctionScope && !isFinishFunctionScope && !isFunctionScope) {
-        isFunctionScope = true;
         scopeLineNumber = start + i + 1;
         continue;
       }
@@ -209,30 +203,10 @@ function makeProvider() {
         continue;
       }
 
-      if (isFunctionScope && !isFinishFunctionScope) {
-        // if (!isFunctionScope) {
-        //   scopeLineNumber = start + i;
-        //   isFunctionScope = true;
-        // }
-        scopeValue += line + "\n";
-        continue;
-      }
-
       if (isFinishScope) {
         // 스코프 코드 재귀
-        // const copyDocument = cloneDeep(documents);
-        // const parsedTextResults = parseText(
-        //   scopeValue,
-        //   scopeLineNumber,
-        //   copyDocument,
-        //   copyPendingDocuments,
-        //   copyScopeDocuments
-        // );
         const copyPendingDocuments = cloneDeep(pendingDocuments);
         const copyScopeDocuments = cloneDeep(scopeDocuments);
-
-        console.log("test", copyScopeDocuments);
-
         const parsedTextResults = parseText(
           scopeValue,
           scopeLineNumber,
@@ -241,7 +215,7 @@ function makeProvider() {
         );
 
         // 초기화
-        if (!isStartScope) {
+        if (!isStartScope && scopeValue) {
           isScope = true;
         } else {
           isScope = false;
@@ -271,6 +245,21 @@ function makeProvider() {
           parsedTextResults.pendingDom
         );
 
+        continue;
+      }
+
+      if (isStartFunctionScope && !isFinishFunctionScope && !isFunctionScope) {
+        isFunctionScope = true;
+        scopeLineNumber = start + i + 1;
+        continue;
+      }
+
+      if (isFunctionScope && !isFinishFunctionScope) {
+        // if (!isFunctionScope) {
+        //   scopeLineNumber = start + i;
+        //   isFunctionScope = true;
+        // }
+        scopeValue += line + "\n";
         continue;
       }
 
@@ -840,9 +829,9 @@ function makeProvdierHelpers() {
         isFinishScope = true;
       }
     } else if (
+      value.includes("if (") ||
       value.includes("else if (") ||
       value.includes("else {") ||
-      (value.includes("if (") && isScope) ||
       value.includes("for (") ||
       value.includes("while (")
     ) {
