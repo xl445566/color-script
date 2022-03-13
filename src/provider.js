@@ -15,6 +15,7 @@ const {
 } = require("./helper/type");
 const { cleanLine, cleanBlank, cleanComment } = require("./helper/cleanUp");
 const { cloneDeep } = require("./helper/utils");
+const constants = require("./helper/constants");
 
 const provider = makeProvider();
 const helper = makeProvdierHelpers();
@@ -65,8 +66,8 @@ function makeProvider() {
 
   function parseToken(type) {
     return {
-      tokenType: "type",
-      tokenModifiers: ["declaration", `${type}`],
+      tokenType: constants.TYPE,
+      tokenModifiers: [constants.DECLARATION, `${type}`],
     };
   }
 
@@ -107,135 +108,152 @@ function makeProvider() {
         const line = lines[i];
 
         // import
-        if (
-          (line.startsWith("import") && line.endsWith(`js";`)) ||
+        // if (
+        //   (line.startsWith("import") && line.endsWith(`js";`)) ||
+        //   isFinishImport
+        // ) {
+        //   const code = importText === "" ? line : importText;
+
+        //   const filteredLineArry = code
+        //     .slice(0, -1)
+        //     .replace("import", "")
+        //     .replace("from", "")
+        //     .replace("{", "")
+        //     .replace("}", "")
+        //     .replaceAll(",", "")
+        //     .split(" ")
+        //     .filter((item) => item !== "");
+
+        //   const importPath = filteredLineArry
+        //     .slice(-1)[0]
+        //     .replaceAll(".", "")
+        //     .split("js")
+        //     .join(".js")
+        //     .slice(1, -1);
+
+        //   const slashCount =
+        //     importPath.split("/").length - (importPath.split("/").length - 1);
+
+        //   const importCode = fs.readFileSync(
+        //     path.split("/").slice(0, -slashCount).join("/") + importPath,
+        //     "utf8"
+        //   );
+
+        //   const parsedImportDocuments = parseText(importCode, 0).dom;
+
+        //   const exportVariableNames = importCode
+        //     .split(/\r\n|\r|\n/)
+        //     .filter((line) => {
+        //       return (
+        //         (line.includes("export") && line.includes("=")) ||
+        //         line.includes("export default")
+        //       );
+        //     })
+        //     .map((line) => {
+        //       return line.split(" ")[2];
+        //     });
+
+        //   const startIndex = code.indexOf("{");
+        //   const endIndex = code.indexOf("}");
+
+        //   const isExistBracket = startIndex !== -1 ? true : false;
+        //   let importVariableName = "";
+        //   let exportVariableName = "";
+
+        //   if (!isExistBracket) {
+        //     importVariableName = line
+        //       .trim()
+        //       .split(" ")
+        //       .map((item, index, array) => {
+        //         if (item === "import") {
+        //           return array[index + 1];
+        //         }
+        //       })
+        //       .filter((item) => item !== undefined);
+
+        //     importVariableName =
+        //       importVariableName.length === 1 ? importVariableName[0] : "";
+        //   } else {
+        //     importVariableName = code
+        //       .substring(0, startIndex)
+        //       .trim()
+        //       .replace(",", "")
+        //       .split(" ")
+        //       .map((item, index, array) => {
+        //         if (item === "import") {
+        //           return array[index + 1];
+        //         }
+        //       })
+        //       .filter((item) => item !== undefined);
+
+        //     importVariableName =
+        //       importVariableName.length === 1 ? importVariableName[0] : "";
+        //   }
+
+        //   const importVariableNames = code
+        //     .substring(startIndex, endIndex + 1)
+        //     .slice(1, -1)
+        //     .split(",")
+        //     .map((variableName) => {
+        //       const name = variableName.trim();
+        //       if (exportVariableNames.includes(name)) {
+        //         return name;
+        //       }
+        //     })
+        //     .filter((variableName) => variableName !== undefined);
+
+        //   if (importVariableName) {
+        //     let copyExportVariableNames = exportVariableNames.slice();
+        //     const copyImportVariableNames = importVariableNames.slice();
+
+        //     copyExportVariableNames.forEach((name) => {
+        //       const index = copyImportVariableNames.indexOf(name);
+
+        //       if (index === -1) {
+        //         exportVariableName = name.slice(0, -1);
+
+        //         documents[importVariableName] =
+        //           parsedImportDocuments[exportVariableName];
+        //       }
+        //     });
+        //   }
+
+        //   importVariableNames.forEach((name) => {
+        //     documents[name] = parsedImportDocuments[name];
+        //   });
+
+        //   // console.log("\n");
+        //   // console.log("importText", code);
+        //   // console.log("isStartImport", isStartImport);
+        //   // console.log("isFinishImport", isFinishImport);
+        //   // console.log("임포트코드 \n", importCode);
+        //   // console.log("프롬 주소", importPath.split("/"));
+        //   // console.log("임포트 변수명 리스트", importVariableNames);
+        //   // console.log("slash 갯수", slashCount);
+        //   // console.log("익스포트변수명들 \n", exportVariableNames);
+        //   // console.log("임포트 파싱", parsedImportDocuments);
+        //   // console.log("도큐먼트", documents);
+        //   // console.log("익스포트 디폴트 변수", importVariableName);
+
+        //   isFinishImport = false;
+        //   importText = "";
+        //   continue;
+        // }
+
+        // import validate
+        const resultImport = helper.handleImportParse(
+          documents,
+          path,
+          line,
+          importText,
           isFinishImport
-        ) {
-          const code = importText === "" ? line : importText;
+        );
 
-          const filteredLineArry = code
-            .slice(0, -1)
-            .replace("import", "")
-            .replace("from", "")
-            .replace("{", "")
-            .replace("}", "")
-            .replaceAll(",", "")
-            .split(" ")
-            .filter((item) => item !== "");
+        documents = resultImport.documents;
+        isFinishImport = resultImport.isFinishImport;
+        importText = resultImport.importText;
 
-          const importPath = filteredLineArry
-            .slice(-1)[0]
-            .replaceAll(".", "")
-            .split("js")
-            .join(".js")
-            .slice(1, -1);
-
-          const slashCount =
-            importPath.split("/").length - (importPath.split("/").length - 1);
-
-          const importCode = fs.readFileSync(
-            path.split("/").slice(0, -slashCount).join("/") + importPath,
-            "utf8"
-          );
-
-          const parsedImportDocuments = parseText(importCode, 0).dom;
-
-          const exportVariableNames = importCode
-            .split(/\r\n|\r|\n/)
-            .filter((line) => {
-              return (
-                (line.includes("export") && line.includes("=")) ||
-                line.includes("export default")
-              );
-            })
-            .map((line) => {
-              return line.split(" ")[2];
-            });
-
-          const startIndex = code.indexOf("{");
-          const endIndex = code.indexOf("}");
-
-          const isExistBracket = startIndex !== -1 ? true : false;
-          let importVariableName = "";
-          let exportVariableName = "";
-
-          if (!isExistBracket) {
-            importVariableName = line
-              .trim()
-              .split(" ")
-              .map((item, index, array) => {
-                if (item === "import") {
-                  return array[index + 1];
-                }
-              })
-              .filter((item) => item !== undefined);
-
-            importVariableName =
-              importVariableName.length === 1 ? importVariableName[0] : "";
-          } else {
-            importVariableName = code
-              .substring(0, startIndex)
-              .trim()
-              .replace(",", "")
-              .split(" ")
-              .map((item, index, array) => {
-                if (item === "import") {
-                  return array[index + 1];
-                }
-              })
-              .filter((item) => item !== undefined);
-
-            importVariableName =
-              importVariableName.length === 1 ? importVariableName[0] : "";
-          }
-
-          const importVariableNames = code
-            .substring(startIndex, endIndex + 1)
-            .slice(1, -1)
-            .split(",")
-            .map((variableName) => {
-              const name = variableName.trim();
-              if (exportVariableNames.includes(name)) {
-                return name;
-              }
-            })
-            .filter((variableName) => variableName !== undefined);
-
-          if (importVariableName) {
-            let copyExportVariableNames = exportVariableNames.slice();
-            const copyImportVariableNames = importVariableNames.slice();
-
-            copyExportVariableNames.forEach((name) => {
-              const index = copyImportVariableNames.indexOf(name);
-
-              if (index === -1) {
-                exportVariableName = name.slice(0, -1);
-
-                documents[importVariableName] =
-                  parsedImportDocuments[exportVariableName];
-              }
-            });
-          }
-
-          importVariableNames.forEach((name) => {
-            documents[name] = parsedImportDocuments[name];
-          });
-
-          // console.log("\n");
-          // console.log("importText", code);
-          // console.log("isStartImport", isStartImport);
-          // console.log("isFinishImport", isFinishImport);
-          // console.log("임포트코드 \n", importCode);
-          // console.log("프롬 주소", importPath.split("/"));
-          // console.log("임포트 변수명 리스트", importVariableNames);
-          // console.log("slash 갯수", slashCount);
-          // console.log("익스포트변수명들 \n", exportVariableNames);
-          // console.log("임포트 파싱", parsedImportDocuments);
-          // console.log("도큐먼트", documents);
-          // console.log("익스포트 디폴트 변수", importVariableName);
-
-          isFinishImport = false;
-          importText = "";
+        if (resultImport.isImport) {
           continue;
         }
 
@@ -1042,6 +1060,156 @@ function makeProvdierHelpers() {
     };
   }
 
+  function handleImportParse(
+    documents,
+    path,
+    value,
+    multilineValue,
+    isFinishImport
+  ) {
+    if (
+      (value.startsWith(constants.IMPORT_START) &&
+        value.endsWith(constants.IMPORT_EXP_JS)) ||
+      isFinishImport
+    ) {
+      const code = multilineValue === constants.NONE ? value : multilineValue;
+
+      const filteredLineArry = code
+        .slice(0, -1)
+        .replace(constants.IMPORT_START, constants.NONE)
+        .replace(constants.IMPORT_END, constants.NONE)
+        .replace(constants.OBJECT_START, constants.NONE)
+        .replace(constants.OBJECT_END, constants.NONE)
+        .replaceAll(constants.COMMA, constants.NONE)
+        .split(constants.BLANK)
+        .filter((item) => item !== constants.NONE);
+
+      const importPath = filteredLineArry
+        .slice(-1)[0]
+        .replaceAll(constants.PERIOD, constants.NONE)
+        .split(constants.LANGUAGE_SHORT_JS)
+        .join(constants.PERIOD + constants.LANGUAGE_SHORT_JS)
+        .slice(1, -1);
+
+      const slashCount =
+        importPath.split(constants.SLASH).length -
+        (importPath.split(constants.SLASH).length - 1);
+
+      const importCode = fs.readFileSync(
+        path
+          .split(constants.SLASH)
+          .slice(0, -slashCount)
+          .join(constants.SLASH) + importPath,
+        constants.ENCODING_UTF8
+      );
+
+      const parsedImportDocuments = provider.parseText(importCode, 0).dom;
+
+      const exportVariableNames = importCode
+        .split(constants.REG_EX_LINE)
+        .filter((line) => {
+          return (
+            (line.includes(constants.EXPORT) &&
+              line.includes(constants.EQUAL)) ||
+            line.includes(constants.EXPORT_DEFAULT)
+          );
+        })
+        .map((line) => {
+          return line.split(constants.BLANK)[2];
+        });
+
+      const startIndex = code.indexOf(constants.OBJECT_START);
+      const endIndex = code.indexOf(constants.OBJECT_END);
+
+      const isExistBracket = startIndex !== -1 ? true : false;
+      let importVariableName = constants.NONE;
+      let exportVariableName = constants.NONE;
+
+      if (!isExistBracket) {
+        importVariableName = code
+          .trim()
+          .split(constants.BLANK)
+          .map((item, index, array) => {
+            if (item === constants.IMPORT_START) {
+              return array[index + 1];
+            }
+          })
+          .filter((item) => item !== undefined);
+
+        importVariableName =
+          importVariableName.length === 1
+            ? importVariableName[0]
+            : constants.NONE;
+      } else {
+        importVariableName = code
+          .substring(0, startIndex)
+          .trim()
+          .replace(constants.COMMA, constants.NONE)
+          .split(constants.BLANK)
+          .map((item, index, array) => {
+            if (item === constants.IMPORT_START) {
+              return array[index + 1];
+            }
+          })
+          .filter((item) => item !== undefined);
+
+        importVariableName =
+          importVariableName.length === 1
+            ? importVariableName[0]
+            : constants.NONE;
+      }
+
+      const importVariableNames = code
+        .substring(startIndex, endIndex + 1)
+        .slice(1, -1)
+        .split(constants.COMMA)
+        .map((variableName) => {
+          const name = variableName.trim();
+          if (exportVariableNames.includes(name)) {
+            return name;
+          }
+        })
+        .filter((variableName) => variableName !== undefined);
+
+      if (importVariableName) {
+        let copyExportVariableNames = exportVariableNames.slice();
+        const copyImportVariableNames = importVariableNames.slice();
+
+        copyExportVariableNames.forEach((name) => {
+          const index = copyImportVariableNames.indexOf(name);
+
+          if (index === -1) {
+            exportVariableName = name.slice(0, -1);
+
+            documents[importVariableName] =
+              parsedImportDocuments[exportVariableName];
+          }
+        });
+      }
+
+      importVariableNames.forEach((name) => {
+        documents[name] = parsedImportDocuments[name];
+      });
+
+      isFinishImport = false;
+      multilineValue = constants.NONE;
+
+      return {
+        documents,
+        isFinishImport,
+        importText: multilineValue,
+        isImport: true,
+      };
+    }
+
+    return {
+      documents,
+      isFinishImport,
+      importText: multilineValue,
+      isImport: false,
+    };
+  }
+
   return {
     handleLineTypeValidate,
     handleUndefinedType,
@@ -1049,6 +1217,7 @@ function makeProvdierHelpers() {
     handleObjectEvaluate,
     handleScopeCreate,
     handleFunctionScopeCreate,
+    handleImportParse,
   };
 }
 
