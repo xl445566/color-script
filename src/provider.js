@@ -71,7 +71,6 @@ function makeProvider() {
 
   function parseText(text, start, docs, pendingDocs) {
     const path = vscode.window.activeTextEditor.document.uri.fsPath;
-    // console.log("path \n", path);
 
     const lines = text.split(/\r\n|\r|\n/);
 
@@ -96,17 +95,25 @@ function makeProvider() {
     let isFinishFunctionScope = false;
 
     let isExport = false;
+    let isStartImport = false;
+    let isFinishImport = false;
+    let importText = "";
 
-    let scopeValue = "";
     let scopeLineNumber = 0;
+    let scopeText = "";
 
     for (let i = 0; i < lines.length; i++) {
       try {
         const line = lines[i];
 
         // import
-        if (line.startsWith("import") && line.endsWith(`js";`)) {
-          const filteredLineArry = line
+        if (
+          (line.startsWith("import") && line.endsWith(`js";`)) ||
+          isFinishImport
+        ) {
+          const code = importText === "" ? line : importText;
+
+          const filteredLineArry = code
             .slice(0, -1)
             .replace("import", "")
             .replace("from", "")
@@ -145,8 +152,8 @@ function makeProvider() {
               return line.split(" ")[2];
             });
 
-          const startIndex = line.indexOf("{");
-          const endIndex = line.indexOf("}");
+          const startIndex = code.indexOf("{");
+          const endIndex = code.indexOf("}");
 
           const isExistBracket = startIndex !== -1 ? true : false;
           let importVariableName = "";
@@ -166,7 +173,7 @@ function makeProvider() {
             importVariableName =
               importVariableName.length === 1 ? importVariableName[0] : "";
           } else {
-            importVariableName = line
+            importVariableName = code
               .substring(0, startIndex)
               .trim()
               .replace(",", "")
@@ -182,7 +189,7 @@ function makeProvider() {
               importVariableName.length === 1 ? importVariableName[0] : "";
           }
 
-          const importVariableNames = line
+          const importVariableNames = code
             .substring(startIndex, endIndex + 1)
             .slice(1, -1)
             .split(",")
@@ -214,15 +221,33 @@ function makeProvider() {
             documents[name] = parsedImportDocuments[name];
           });
 
-          console.log("\n");
-          console.log("임포트코드 \n", importCode);
+          // console.log("\n");
+          // console.log("importText", code);
+          // console.log("isStartImport", isStartImport);
+          // console.log("isFinishImport", isFinishImport);
+          // console.log("임포트코드 \n", importCode);
           // console.log("프롬 주소", importPath.split("/"));
-          console.log("임포트 변수명 리스트", importVariableNames);
+          // console.log("임포트 변수명 리스트", importVariableNames);
           // console.log("slash 갯수", slashCount);
-          console.log("익스포트변수명들 \n", exportVariableNames);
-          console.log("임포트 파싱", parsedImportDocuments);
+          // console.log("익스포트변수명들 \n", exportVariableNames);
+          // console.log("임포트 파싱", parsedImportDocuments);
           // console.log("도큐먼트", documents);
-          console.log("익스포트 디폴트 변수", importVariableName);
+          // console.log("익스포트 디폴트 변수", importVariableName);
+
+          isFinishImport = false;
+          importText = "";
+          continue;
+        }
+
+        // import multiline
+        if (line.startsWith("import") || isStartImport) {
+          isStartImport = true;
+          importText += " " + line;
+
+          if (line.endsWith(`js";`)) {
+            isStartImport = false;
+            isFinishImport = true;
+          }
 
           continue;
         }
@@ -327,7 +352,7 @@ function makeProvider() {
             scopeLineNumber = start + i;
             isStartScope = true;
           }
-          scopeValue += line + "\n";
+          scopeText += line + "\n";
           continue;
         }
 
@@ -336,7 +361,7 @@ function makeProvider() {
           const copyScopeDocuments = cloneDeep(scopeDocuments);
           const copyPendingDocuments = cloneDeep(pendingDocuments);
           const parsedTextResults = parseText(
-            scopeValue,
+            scopeText,
             scopeLineNumber,
             copyScopeDocuments,
             copyPendingDocuments
@@ -351,7 +376,7 @@ function makeProvider() {
           isStartScope = false;
           isFinishScope = false;
           scopeLineNumber = 0;
-          scopeValue = "";
+          scopeText = "";
 
           // 스코프 tokens 추가
           results.push(...parsedTextResults.tokens);
@@ -391,7 +416,7 @@ function makeProvider() {
             scopeLineNumber = start + i;
             isFunctionScope = true;
           }
-          scopeValue += line + "\n";
+          scopeText += line + "\n";
           continue;
         }
 
@@ -400,7 +425,7 @@ function makeProvider() {
           const copyDocument = cloneDeep(documents);
           const copyPendingDocuments = cloneDeep(pendingDocuments);
           const parsedTextResults = parseText(
-            scopeValue,
+            scopeText,
             scopeLineNumber,
             copyDocument,
             copyPendingDocuments
@@ -415,7 +440,7 @@ function makeProvider() {
           isStartFunctionScope = false;
           isFinishFunctionScope = false;
           scopeLineNumber = 0;
-          scopeValue = "";
+          scopeText = "";
 
           // 스코프 tokens 추가
           results.push(...parsedTextResults.tokens);
