@@ -131,12 +131,15 @@ function makeProvider() {
             "utf8"
           );
 
-          const parsedImportCode = parseText(importCode, 0).dom;
+          const parsedImportDocuments = parseText(importCode, 0).dom;
 
           const exportVariableNames = importCode
             .split(/\r\n|\r|\n/)
             .filter((line) => {
-              return line.includes("export") && line.includes("=");
+              return (
+                (line.includes("export") && line.includes("=")) ||
+                line.includes("export default")
+              );
             })
             .map((line) => {
               return line.split(" ")[2];
@@ -145,7 +148,41 @@ function makeProvider() {
           const startIndex = line.indexOf("{");
           const endIndex = line.indexOf("}");
 
-          const importData = line
+          const isExistBracket = startIndex !== -1 ? true : false;
+          let importVariableName = "";
+          let exportVariableName = "";
+
+          if (!isExistBracket) {
+            importVariableName = line
+              .trim()
+              .split(" ")
+              .map((item, index, array) => {
+                if (item === "import") {
+                  return array[index + 1];
+                }
+              })
+              .filter((item) => item !== undefined);
+
+            importVariableName =
+              importVariableName.length === 1 ? importVariableName[0] : "";
+          } else {
+            importVariableName = line
+              .substring(0, startIndex)
+              .trim()
+              .replace(",", "")
+              .split(" ")
+              .map((item, index, array) => {
+                if (item === "import") {
+                  return array[index + 1];
+                }
+              })
+              .filter((item) => item !== undefined);
+
+            importVariableName =
+              importVariableName.length === 1 ? importVariableName[0] : "";
+          }
+
+          const importVariableNames = line
             .substring(startIndex, endIndex + 1)
             .slice(1, -1)
             .split(",")
@@ -154,20 +191,38 @@ function makeProvider() {
               if (exportVariableNames.includes(name)) {
                 return name;
               }
-            });
+            })
+            .filter((variableName) => variableName !== undefined);
 
-          importData.forEach((name) => {
-            documents[name] = parsedImportCode[name];
+          if (importVariableName) {
+            let copyExportVariableNames = exportVariableNames.slice();
+            const copyImportVariableNames = importVariableNames.slice();
+
+            copyExportVariableNames.forEach((name) => {
+              const index = copyImportVariableNames.indexOf(name);
+
+              if (index === -1) {
+                exportVariableName = name.slice(0, -1);
+
+                documents[importVariableName] =
+                  parsedImportDocuments[exportVariableName];
+              }
+            });
+          }
+
+          importVariableNames.forEach((name) => {
+            documents[name] = parsedImportDocuments[name];
           });
 
-          // console.log("\n");
-          // console.log("from 주소", importPath.split("/"));
+          console.log("\n");
+          console.log("임포트코드 \n", importCode);
+          // console.log("프롬 주소", importPath.split("/"));
+          console.log("임포트 변수명 리스트", importVariableNames);
           // console.log("slash 갯수", slashCount);
-          // console.log("임포트코드 \n", importCode);
-          // console.log("import 변수", importData);
-          // console.log("익스포트변수명들 \n", exportVariableNames);
-          // console.log("임포트 파싱", parsedImportCode);
+          console.log("익스포트변수명들 \n", exportVariableNames);
+          console.log("임포트 파싱", parsedImportDocuments);
           // console.log("도큐먼트", documents);
+          console.log("익스포트 디폴트 변수", importVariableName);
 
           continue;
         }
@@ -175,6 +230,10 @@ function makeProvider() {
         // export
         if (line.startsWith("export") && line.includes("=")) {
           isExport = true;
+        }
+
+        if (line.startsWith("export default")) {
+          continue;
         }
 
         // Multiline 처리
