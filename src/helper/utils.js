@@ -1,5 +1,7 @@
+const constants = require("./constants");
+
 function cloneDeep(obj) {
-  if (obj === null || typeof obj !== "object") {
+  if (obj === null || typeof obj !== constants.OBJECT) {
     return obj;
   }
 
@@ -12,4 +14,4 @@ function cloneDeep(obj) {
   return result;
 }
 
-// exports.cloneDeep = cloneDeep;
+exports.cloneDeep = cloneDeep;

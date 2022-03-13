@@ -1,5 +1,11 @@
+const constants = require("./constants");
+
 function checkBooleanType(value) {
-  if (value === "true;" || value === "false;" || value[0] === "!") {
+  if (
+    value === constants.TRUE + constants.SEMI_COLON ||
+    value === constants.FALSE + constants.SEMI_COLON ||
+    value[0] === constants.EXCLAMATION_MARK
+  ) {
     return true;
   }
 
@@ -7,7 +13,7 @@ function checkBooleanType(value) {
 }
 
 function checkNumberType(value) {
-  if (!isNaN(value.slice(0, -1)) && value !== ";") {
+  if (!isNaN(value.slice(0, -1)) && value !== constants.SEMI_COLON) {
     return true;
   }
 
@@ -16,21 +22,22 @@ function checkNumberType(value) {
   let text = value;
 
   numbers.forEach((number) => {
-    text = text.replaceAll(number, "");
+    text = text.replaceAll(number, constants.NONE);
   });
 
   symbols.forEach((symbol) => {
-    text = text.replaceAll(symbol, "");
+    text = text.replaceAll(symbol, constants.NONE);
   });
 
-  return text === ";" && value.trim() !== ";";
+  return text === constants.SEMI_COLON && value.trim() !== constants.SEMI_COLON;
 }
 
 function checkStringType(value) {
   const startCharCode = value.charCodeAt(0);
   const endCharCode = value.charCodeAt(value.length - 2);
   const charCodes = [34, 39, 96];
-  const isFinished = value.slice(-1) === ";";
+  const isFinished = value.slice(-1) === constants.SEMI_COLON;
+
   let temp = [];
   let charCodeCount = 0;
 
@@ -69,9 +76,9 @@ function checkStringType(value) {
 }
 
 function checkNullType(value) {
-  const hasSemicolon = value.slice(-1) === ";";
+  const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
 
-  if (hasSemicolon && value.slice(0, -1) === "null") {
+  if (hasSemicolon && value.slice(0, -1) === constants.NULL) {
     return true;
   }
 
@@ -79,9 +86,9 @@ function checkNullType(value) {
 }
 
 function checkUndefinedType(value) {
-  const hasSemicolon = value.slice(-1) === ";";
+  const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
 
-  if (hasSemicolon && value.slice(0, -1) === "undefined") {
+  if (hasSemicolon && value.slice(0, -1) === constants.UNDEFINED) {
     return true;
   }
 
@@ -89,10 +96,10 @@ function checkUndefinedType(value) {
 }
 
 function checkArrayType(value) {
-  const hasSemicolon = value.slice(-1) === ";";
+  const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
   const code = value.slice(0, -1).trim();
-  const open = code.startsWith("[");
-  const close = code.endsWith("]");
+  const open = code.startsWith(constants.ARRAY_START);
+  const close = code.endsWith(constants.ARRAY_END);
 
   if (hasSemicolon && open && close) {
     return true;
@@ -102,10 +109,10 @@ function checkArrayType(value) {
 }
 
 function checkObjectType(value) {
-  const hasSemicolon = value.slice(-1) === ";";
+  const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
   const code = value.slice(0, -1).trim();
-  const open = code.startsWith("{");
-  const close = code.endsWith("}");
+  const open = code.startsWith(constants.OBJECT_START);
+  const close = code.endsWith(constants.OBJECT_END);
 
   if (hasSemicolon && open && close) {
     return true;

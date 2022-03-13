@@ -2,6 +2,7 @@
 
 const vscode = require("vscode");
 const fs = require("fs");
+
 const { tokenTypes, tokenModifiers } = require("./legend");
 const {
   checkBooleanType,
@@ -11,9 +12,9 @@ const {
   checkUndefinedType,
   checkArrayType,
   checkObjectType,
-} = require("./type");
-const { cleanLine, cleanBlank, cleanComment } = require("./cleanUp");
-const { cloneDeep } = require("./utils");
+} = require("./helper/type");
+const { cleanLine, cleanBlank, cleanComment } = require("./helper/cleanUp");
+const { cloneDeep } = require("./helper/utils");
 
 const provider = makeProvider();
 const helper = makeProvdierHelpers();
@@ -71,17 +72,14 @@ function makeProvider() {
 
   function parseText(text, start, docs, pendingDocs) {
     const path = vscode.window.activeTextEditor.document.uri.fsPath;
-
     const lines = text.split(/\r\n|\r|\n/);
-
     const results = [];
+
     let documents = docs === undefined ? {} : docs;
     let pendingDocuments = pendingDocs === undefined ? {} : pendingDocs;
     let scopeDocuments = {};
     let tempraryParsedText = {};
-
     let tokenData = null;
-    let currentOffset = 0;
 
     let isCommenting = false;
     let isContinue = false;
@@ -101,6 +99,8 @@ function makeProvider() {
 
     let scopeLineNumber = 0;
     let scopeText = "";
+
+    let currentOffset = 0;
 
     for (let i = 0; i < lines.length; i++) {
       try {
