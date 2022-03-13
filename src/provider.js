@@ -123,8 +123,6 @@ function makeProvider() {
             .join(".js")
             .slice(1, -1);
 
-          const importData = filteredLineArry.slice(0, -1);
-
           const slashCount =
             importPath.split("/").length - (importPath.split("/").length - 1);
 
@@ -133,13 +131,43 @@ function makeProvider() {
             "utf8"
           );
 
-          console.log("\n");
+          const parsedImportCode = parseText(importCode, 0).dom;
+
+          const exportVariableNames = importCode
+            .split(/\r\n|\r|\n/)
+            .filter((line) => {
+              return line.includes("export") && line.includes("=");
+            })
+            .map((line) => {
+              return line.split(" ")[2];
+            });
+
+          const startIndex = line.indexOf("{");
+          const endIndex = line.indexOf("}");
+
+          const importData = line
+            .substring(startIndex, endIndex + 1)
+            .slice(1, -1)
+            .split(",")
+            .map((variableName) => {
+              const name = variableName.trim();
+              if (exportVariableNames.includes(name)) {
+                return name;
+              }
+            });
+
+          importData.forEach((name) => {
+            documents[name] = parsedImportCode[name];
+          });
+
+          // console.log("\n");
           // console.log("from 주소", importPath.split("/"));
           // console.log("slash 갯수", slashCount);
-          console.log("import 변수", importData);
-          console.log("\n");
-          console.log("임포트코드 \n", importCode);
-          console.log("임포트 파싱", parseText(importCode, 0).dom);
+          // console.log("임포트코드 \n", importCode);
+          // console.log("import 변수", importData);
+          // console.log("익스포트변수명들 \n", exportVariableNames);
+          // console.log("임포트 파싱", parsedImportCode);
+          // console.log("도큐먼트", documents);
 
           continue;
         }
