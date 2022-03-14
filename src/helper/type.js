@@ -98,8 +98,8 @@ function checkUndefinedType(value) {
 function checkArrayType(value) {
   const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
   const code = value.slice(0, -1).trim();
-  const open = code.startsWith(constants.ARRAY_START);
-  const close = code.endsWith(constants.ARRAY_END);
+  const open = code.startsWith(constants.BRACKET_START);
+  const close = code.endsWith(constants.BRACKET_END);
 
   if (hasSemicolon && open && close) {
     return true;
@@ -111,8 +111,8 @@ function checkArrayType(value) {
 function checkObjectType(value) {
   const hasSemicolon = value.slice(-1) === constants.SEMI_COLON;
   const code = value.slice(0, -1).trim();
-  const open = code.startsWith(constants.OBJECT_START);
-  const close = code.endsWith(constants.OBJECT_END);
+  const open = code.startsWith(constants.BRACE_START);
+  const close = code.endsWith(constants.BRACE_END);
 
   if (hasSemicolon && open && close) {
     return true;
