@@ -1,0 +1,44 @@
+const constants = require("./constants");
+
+function cloneDeep(obj) {
+  if (obj === null || typeof obj !== constants.OBJECT) {
+    return obj;
+  }
+
+  const result = Array.isArray(obj) ? [] : {};
+
+  for (let key of Object.keys(obj)) {
+    result[key] = cloneDeep(obj[key]);
+  }
+
+  return result;
+}
+
+function findValueInKeyFromStringTypeObject(keys, stringObj) {
+  const results = [];
+  let copyStringObj = stringObj;
+  let hasKey = true;
+
+  keys.forEach((key) => {
+    if (copyStringObj.includes(key) && hasKey) {
+      const keyStartIndex = copyStringObj.indexOf(key);
+      const keyEndIndex = keyStartIndex + key.length;
+      const colonIndex = copyStringObj.indexOf(constants.COLON, keyEndIndex);
+
+      const value = copyStringObj
+        .substring(colonIndex)
+        .slice(1)
+        .split(constants.COMMA)[0];
+
+      results.push(value.trim());
+      copyStringObj = copyStringObj.substring(colonIndex);
+    } else {
+      hasKey = false;
+    }
+  });
+
+  return hasKey ? results : null;
+}
+
+exports.cloneDeep = cloneDeep;
+exports.findValueInKeyFromStringTypeObject = findValueInKeyFromStringTypeObject;

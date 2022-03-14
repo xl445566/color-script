@@ -1,24 +1,25 @@
 const vscode = require("vscode");
+const constants = require("./helper/constants");
 
 const tokenTypes = new Map();
 const tokenModifiers = new Map();
+
 const legend = (function () {
-  const tokenTypesLegend = ["type"];
+  const tokenTypesLegend = [constants.TYPE];
 
   tokenTypesLegend.forEach((tokenType, index) =>
     tokenTypes.set(tokenType, index)
   );
 
   const tokenModifiersLegend = [
-    "declaration",
-    "boolean",
-    "string",
-    "number",
-    "null",
-    "undefined",
-    "array",
-    "object",
-    "not_defined",
+    constants.DECLARATION,
+    constants.BOOLEAN,
+    constants.STRING,
+    constants.NUMBER,
+    constants.NULL,
+    constants.UNDEFINED,
+    constants.ARRAY,
+    constants.OBJECT,
   ];
 
   tokenModifiersLegend.forEach((tokenModifier, index) =>
