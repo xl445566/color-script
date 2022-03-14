@@ -14,6 +14,8 @@ const constants = {
   EXCLAMATION_MARK: "!",
   SLASH: "/",
   EQUAL: "=",
+  PLUS: "+",
+  MINUS: "-",
   NEW_LINE: "\n",
   LINE_COMMENT_DOUBLE_SLASH: "//",
   BLOCK_COMMENT_START: "/*",

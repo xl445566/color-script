@@ -17,10 +17,7 @@ const {
   checkObjectType,
 } = require("./helper/type");
 
-const {
-  cloneDeep,
-  findValueInKeyFromStringTypeObject,
-} = require("./helper/utils");
+const { findValueInKeyFromStringTypeObject } = require("./helper/utils");
 
 const provider = makeProvider();
 const helper = makeProvdierHelpers();
@@ -76,35 +73,23 @@ function makeProvider() {
     };
   }
 
-  function parseText(text, start, docs, pendingDocs) {
+  function parseText(text, start) {
     const path = vscode.window.activeTextEditor.document.uri.fsPath;
-    const lines = text.split(/\r\n|\r|\n/);
+    const lines = text.split(constants.REG_EX_LINE);
     let results = [];
 
-    let documents = docs === undefined ? {} : docs;
-    let pendingDocuments = pendingDocs === undefined ? {} : pendingDocs;
-    let scopeDocuments = {};
+    let documents = {};
+    let pendingDocuments = {};
     let tempraryParsedText = {};
     let tokenData = null;
 
     let isCommenting = false;
     let isContinue = false;
 
-    let isStartScope = false;
-    let isScope = false;
-    let isFinishScope = false;
-
-    let isStartFunctionScope = false;
-    let isFunctionScope = false;
-    let isFinishFunctionScope = false;
-
     let isExport = false;
     let isStartImport = false;
     let isFinishImport = false;
     let importText = constants.NONE;
-
-    let scopeLineNumber = 0;
-    let scopeText = constants.NONE;
 
     let currentOffset = 0;
 
@@ -112,7 +97,6 @@ function makeProvider() {
       try {
         const line = lines[i];
 
-        // import
         const resultImport = helper.handleImportParse(
           documents,
           path,
@@ -129,7 +113,6 @@ function makeProvider() {
           continue;
         }
 
-        // import multiline
         if (line.startsWith(constants.IMPORT_START) || isStartImport) {
           isStartImport = true;
           importText += constants.BLANK + line;
@@ -142,7 +125,6 @@ function makeProvider() {
           continue;
         }
 
-        // export
         if (
           line.startsWith(constants.EXPORT) &&
           line.includes(constants.EQUAL)
@@ -154,7 +136,6 @@ function makeProvider() {
           continue;
         }
 
-        // multiline
         if (isContinue && line) {
           tempraryParsedText.value += line;
 
@@ -176,162 +157,9 @@ function makeProvider() {
           continue;
         }
 
-        // 스코프
-        const resultScope = helper.handleScopeCreate(
-          line,
-          isStartScope,
-          isFinishScope,
-          isScope,
-          isStartFunctionScope,
-          isFinishFunctionScope,
-          isFunctionScope
-        );
-
-        isStartScope = resultScope.isStartScope;
-        isFinishScope = resultScope.isFinishScope;
-        isScope = resultScope.isScope;
-
-        isStartFunctionScope = resultScope.isStartFunctionScope;
-        isFinishFunctionScope = resultScope.isFinishFunctionScope;
-        isFunctionScope = resultScope.isFunctionScope;
-
-        if (line.includes("mad")) {
-          console.log("\n");
-          console.log("line", line);
-          console.log("isStartScope", isStartScope);
-          console.log("isFinishScope", isFinishScope);
-          console.log("isScope", isScope);
-          console.log("scopeLineNumber", scopeLineNumber);
-          console.log("scopeText \n", scopeText);
-        }
-
-        if (isStartScope && !isFinishScope && !isScope) {
-          isScope = true;
-          scopeLineNumber = start + i + 1;
-          continue;
-        }
-
-        if (isScope && !isFinishScope) {
-          if (!isStartScope) {
-            scopeLineNumber = start + i;
-            isStartScope = true;
-          }
-          scopeText += line + constants.NEW_LINE;
-          continue;
-        }
-
-        if (isFinishScope) {
-          // 스코프 재귀
-          const copyScopeDocuments = cloneDeep(scopeDocuments);
-          const copyPendingDocuments = cloneDeep(pendingDocuments);
-          const parsedTextResults = parseText(
-            scopeText,
-            scopeLineNumber,
-            copyScopeDocuments,
-            copyPendingDocuments
-          );
-
-          console.log("\n");
-          console.log("isStartScope", isStartScope);
-          console.log("isFinishScope", isFinishScope);
-          console.log("isScope", isScope);
-          console.log("scopeLineNumber", scopeLineNumber);
-          console.log("scopeText \n", scopeText);
-          console.log("parsedTextResults", parsedTextResults);
-
-          // 초기화
-          if (!isStartScope) {
-            isScope = true;
-          } else {
-            isScope = false;
-          }
-          isStartScope = false;
-          isFinishScope = false;
-          scopeLineNumber = 0;
-          scopeText = constants.NONE;
-
-          // 스코프 tokens
-          results.push(...parsedTextResults.tokens);
-
-          // 스코프 documents
-          for (const key in parsedTextResults.dom) {
-            if (
-              parsedTextResults.dom[key][0].statement ===
-              constants.STATEMENT_VAR
-            ) {
-              const document = {
-                [key]: parsedTextResults.dom[key],
-              };
-              documents = Object.assign(documents, document);
-            }
-          }
-          scopeDocuments = Object.assign(scopeDocuments, parsedTextResults.dom);
-
-          // 스코프 pendingDocuments
-          pendingDocuments = Object.assign(
-            pendingDocuments,
-            parsedTextResults.pendingDom
-          );
-
-          continue;
-        }
-
-        if (
-          isStartFunctionScope &&
-          !isFinishFunctionScope &&
-          !isFunctionScope
-        ) {
-          isFunctionScope = true;
-          scopeLineNumber = start + i + 1;
-
-          continue;
-        }
-
-        if (isFunctionScope && !isFinishFunctionScope) {
-          if (!isFunctionScope) {
-            scopeLineNumber = start + i;
-            isFunctionScope = true;
-          }
-
-          scopeText += line + constants.NEW_LINE;
-
-          continue;
-        }
-
-        if (isFinishFunctionScope) {
-          // 함수 스코프 재귀
-          const copyDocument = cloneDeep(documents);
-          const copyPendingDocuments = cloneDeep(pendingDocuments);
-          const parsedTextResults = parseText(
-            scopeText,
-            scopeLineNumber,
-            copyDocument,
-            copyPendingDocuments
-          );
-
-          // 초기화
-          if (!isStartFunctionScope) {
-            isFunctionScope = true;
-          } else {
-            isFunctionScope = false;
-          }
-
-          isStartFunctionScope = false;
-          isFinishFunctionScope = false;
-          scopeLineNumber = 0;
-          scopeText = constants.NONE;
-
-          // 함수 스코프 tokens
-          results.push(...parsedTextResults.tokens);
-
-          continue;
-        }
-
-        // tokenData, currentOffset 초기화
         tokenData = null;
         currentOffset = 0;
 
-        // 공백처리 , 주석처리 , 빈줄처리
         const validatedLineResults = cleanLine(line, isCommenting);
         const isSkip = validatedLineResults.isSkip;
         isCommenting = validatedLineResults.isCommenting;
@@ -344,7 +172,6 @@ function makeProvider() {
         let trimedLine = trimedLineResults.line;
         currentOffset = trimedLineResults.count;
 
-        // undefined 처리
         if (trimedLine.split(constants.BLANK).length === 2) {
           trimedLine = helper.handleUndefinedType(trimedLine);
 
@@ -364,11 +191,8 @@ function makeProvider() {
 
         currentOffset = removedCommentLineResults.count;
 
-        // 변수 , 값 분류
         let declarationArea = convertedLineArray[0].split(constants.BLANK);
         let definitionArea = convertedLineArray[1].trim();
-
-        // 변수 시작 , 종료 위치
         let startPos = 0;
         let endPos = 0;
 
@@ -389,10 +213,6 @@ function makeProvider() {
           endPos = startPos + variableNameLength;
         }
 
-        // 변수의 값으로 Type 체크 tokenData 생성
-        tokenData = helper.handleLineTypeValidate(definitionArea);
-
-        // multiline
         if (definitionArea.slice(-1) !== constants.SEMI_COLON) {
           tempraryParsedText = {
             declarationArea: declarationArea,
@@ -407,9 +227,18 @@ function makeProvider() {
           isContinue = true;
 
           continue;
+        } else if (
+          declarationArea[1] === constants.PLUS ||
+          declarationArea[1] === constants.MINUS ||
+          declarationArea
+            .join(constants.BLANK)
+            .includes(constants.EXPRESSION_FOR)
+        ) {
+          continue;
         }
 
-        // array.length , array[index] , object.property
+        tokenData = helper.handleLineTypeValidate(definitionArea);
+
         if (!tokenData) {
           const addPropertyResult = helper.handleArrayAndObjectPropertyCreate(
             documents,
@@ -662,7 +491,6 @@ function makeProvdierHelpers() {
       definitionArea.endsWith(constants.LENGTH + constants.SEMI_COLON) &&
       definitionArea.includes(constants.PERIOD)
     ) {
-      // .length
       if (
         (!definitionArea.includes(constants.BRACKET_START) &&
           !definitionArea.includes(constants.BRACKET_END)) ||
@@ -742,7 +570,6 @@ function makeProvdierHelpers() {
     } else if (
       definitionArea.endsWith(constants.BRACKET_END + constants.SEMI_COLON)
     ) {
-      // array[index]
       const arrayName = definitionArea.split(constants.BRACKET_START)[0];
       const indexList = definitionArea
         .split(constants.BRACKET_START)
@@ -777,7 +604,6 @@ function makeProvdierHelpers() {
       definitionArea.includes(constants.PERIOD) &&
       definitionArea.slice(0, -1).split(constants.PERIOD)[1]
     ) {
-      // object.property
       const data = definitionArea.slice(0, -1).split(constants.PERIOD);
       const objName = data[0];
       const properties = data.slice(1);
@@ -826,70 +652,6 @@ function makeProvdierHelpers() {
     return {
       documents,
       tokenData,
-    };
-  }
-
-  function handleScopeCreate(
-    value,
-    isStartScope,
-    isFinishScope,
-    isScope,
-    isStartFunctionScope,
-    isFinishFunctionScope,
-    isFunctionScope
-  ) {
-    if (
-      value.includes(constants.EXPRESSION_IF) ||
-      value.includes(constants.EXPRESSION_ELSE_IF) ||
-      (value.includes(constants.EXPRESSION_ELSE) && !isScope) ||
-      value.includes(constants.EXPRESSION_FOR) ||
-      value.includes(constants.EXPRESSION_WHILE)
-    ) {
-      isStartScope = true;
-    }
-
-    if (
-      value.includes(constants.EXPRESSION_FUNCTION) &&
-      value.includes(constants.PARENTHESIS_START)
-    ) {
-      isStartFunctionScope = true;
-    }
-
-    if (value.trim() === constants.BRACE_END) {
-      if (isFunctionScope) {
-        isFinishFunctionScope = true;
-        isStartFunctionScope = true;
-        isFunctionScope = false;
-      } else {
-        isFinishScope = true;
-        isStartScope = true;
-        isScope = false;
-      }
-    } else if (
-      (value.includes(constants.EXPRESSION_IF) && isScope) ||
-      value.includes(constants.EXPRESSION_ELSE_IF) ||
-      value.includes(constants.EXPRESSION_ELSE) ||
-      (value.includes(constants.EXPRESSION_FOR) && isScope) ||
-      (value.includes(constants.EXPRESSION_WHILE) && isScope)
-    ) {
-      isStartScope = false;
-      isFinishScope = true;
-    } else if (
-      value.includes(constants.EXPRESSION_FUNCTION) &&
-      value.includes(constants.PARENTHESIS_START) &&
-      isFunctionScope
-    ) {
-      isStartFunctionScope = false;
-      isFinishFunctionScope = true;
-    }
-
-    return {
-      isStartScope,
-      isFinishScope,
-      isScope,
-      isStartFunctionScope,
-      isFinishFunctionScope,
-      isFunctionScope,
     };
   }
 
@@ -1055,7 +817,6 @@ function makeProvdierHelpers() {
     startPos,
     endPos
   ) {
-    // if : 변수 초기선언시 const , var , let -> parsing
     if (
       declarationArea[0] === constants.STATEMENT_VAR ||
       declarationArea[0] === constants.STATEMENT_LET ||
@@ -1066,7 +827,6 @@ function makeProvdierHelpers() {
       const variableInValue = definitionArea.slice(0, -1);
 
       if (tokenData) {
-        // case : 첫 변수선언 = 값
         documents[variableName] = [
           {
             statement,
@@ -1079,9 +839,7 @@ function makeProvdierHelpers() {
           },
         ];
       } else {
-        // case : 첫 변수선언 = 변수
         if (documents[variableInValue]) {
-          // 변수 (선언 O)
           const latestVariableInfo = documents[variableInValue].slice(-1)[0];
           tokenData = latestVariableInfo.tokenData;
 
@@ -1098,7 +856,6 @@ function makeProvdierHelpers() {
           ];
         } else {
           if (!pendingDocuments[variableInValue]) {
-            // 변수 (선언 X)
             pendingDocuments[variableInValue] = [
               {
                 statement,
@@ -1111,7 +868,6 @@ function makeProvdierHelpers() {
               },
             ];
           } else {
-            // 선언 X 변수 중복 발견시
             pendingDocuments[variableInValue].push({
               variable: variableName,
               line: i + start,
@@ -1171,8 +927,6 @@ function makeProvdierHelpers() {
         constants.STATEMENT_CONST &&
       tokenData
     ) {
-      // else if :  let이나 var로 선언한 변수 = "asdf"; 이렇게 하드코딩 할당 시
-      // const인 변수는 로직을 수행하지 못하도록 startPos 조정
       const variableName = declarationArea[0];
       startPos = endPos - variableName.length - 1;
 
@@ -1185,7 +939,6 @@ function makeProvdierHelpers() {
         tokenData,
       });
     } else if (documents[declarationArea.slice(0, -1)] && !tokenData) {
-      // else if : 변수 = 변수를 할당할 때
       const variableName = declarationArea[0];
       const variableInValue = definitionArea.slice(0, -1);
       const statement = documents[declarationArea.slice(0, -1)][0].statement;
@@ -1193,7 +946,6 @@ function makeProvdierHelpers() {
       startPos = endPos - variableName.length - 1;
 
       if (documents[variableInValue]) {
-        // 선언 O 변수
         latestVariableInfo = documents[variableInValue].slice(-1)[0];
         tokenData = latestVariableInfo.tokenData;
 
@@ -1207,7 +959,6 @@ function makeProvdierHelpers() {
         });
       } else {
         if (!pendingDocuments[variableInValue]) {
-          // 변수 (선언 X)
           pendingDocuments[variableInValue] = [
             {
               variable: variableName,
@@ -1219,7 +970,6 @@ function makeProvdierHelpers() {
             },
           ];
         } else {
-          // 선언 X 변수 중복 발견시
           pendingDocuments[variableInValue].push({
             variable: variableName,
             line: i + start,
@@ -1291,7 +1041,6 @@ function makeProvdierHelpers() {
     handleArrayCreate,
     handleObjectEvaluate,
     handleArrayAndObjectPropertyCreate,
-    handleScopeCreate,
     handleImportParse,
     handleVariableAndValueParse,
   };
