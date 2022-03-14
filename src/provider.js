@@ -4,6 +4,9 @@ const vscode = require("vscode");
 const fs = require("fs");
 
 const { tokenTypes, tokenModifiers } = require("./legend");
+const constants = require("./helper/constants");
+const { cleanLine, cleanBlank, cleanComment } = require("./helper/cleanUp");
+
 const {
   checkBooleanType,
   checkNumberType,
@@ -13,9 +16,11 @@ const {
   checkArrayType,
   checkObjectType,
 } = require("./helper/type");
-const { cleanLine, cleanBlank, cleanComment } = require("./helper/cleanUp");
-const { cloneDeep } = require("./helper/utils");
-const constants = require("./helper/constants");
+
+const {
+  cloneDeep,
+  findValueInKeyFromStringTypeObject,
+} = require("./helper/utils");
 
 const provider = makeProvider();
 const helper = makeProvdierHelpers();
@@ -334,14 +339,14 @@ function makeProvider() {
           trimedLine,
           currentOffset
         );
+
         const convertedLineArray = removedCommentLineResults.line.split(
           constants.EQUAL
         );
+
         currentOffset = removedCommentLineResults.count;
 
         // 변수 , 값 분류
-        console.log(convertedLineArray);
-
         let declarationArea = convertedLineArray[0].split(constants.BLANK);
         let definitionArea = convertedLineArray[1].trim();
 
@@ -620,13 +625,13 @@ function makeProvdierHelpers() {
     })();
   }
 
-  function handleObjectEvaluate(value) {
+  function handleObjectEvaluate(documents, objName, value) {
     try {
       const func = new Function(`return ${value};`);
 
       return func();
     } catch (error) {
-      return null;
+      return documents[objName].slice(-1)[0].value;
     }
   }
 
@@ -640,17 +645,81 @@ function makeProvdierHelpers() {
       definitionArea.includes(constants.PERIOD)
     ) {
       // .length
-      const variableName = definitionArea
-        .slice(0, -1)
-        .split(constants.PERIOD)[0];
-
       if (
-        documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
-          constants.STRING ||
-        documents[variableName].slice(-1)[0].tokenData.tokenModifiers[1] ===
-          constants.ARRAY
+        (!definitionArea.includes(constants.BRACKET_START) &&
+          !definitionArea.includes(constants.BRACKET_END)) ||
+        definitionArea.includes(constants.COMMA)
       ) {
-        tokenData = provider.parseToken(constants.NUMBER);
+        const value = definitionArea.slice(0, -1).split(constants.PERIOD)[0];
+        let type = handleLineTypeValidate(value + constants.SEMI_COLON);
+
+        if (type) {
+          type = type.tokenModifiers[1];
+        }
+
+        if (
+          type === constants.STRING ||
+          type === constants.ARRAY ||
+          documents[value].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            constants.STRING ||
+          documents[value].slice(-1)[0].tokenData.tokenModifiers[1] ===
+            constants.ARRAY
+        ) {
+          tokenData = provider.parseToken(constants.NUMBER);
+        }
+      } else {
+        const arrayName = definitionArea.split(constants.BRACKET_START)[0];
+        const decompositedList = [];
+
+        definitionArea
+          .split(constants.BRACKET_START)
+          .slice(1)
+          .map((item) => {
+            return item
+              .replace(constants.BRACKET_END, constants.NONE)
+              .replace(constants.SEMI_COLON, constants.NONE)
+              .split(constants.PERIOD);
+          })
+          .forEach((array) => {
+            array.forEach((item) => {
+              decompositedList.push(item);
+            });
+          });
+
+        const value = documents[arrayName].slice(-1)[0].value;
+        const resultArray = handleArrayCreate(value)[0];
+        let result = null;
+        const hasLength = decompositedList.slice(-1)[0] === constants.LENGTH;
+
+        decompositedList.forEach((item) => {
+          if (!result && item !== constants.LENGTH) {
+            result = resultArray[item];
+          } else if (item !== constants.LENGTH) {
+            result = result[item];
+          }
+        });
+
+        if (Array.isArray(result)) {
+          if (hasLength) {
+            tokenData = provider.parseToken(constants.NUMBER);
+          } else {
+            tokenData = provider.parseToken(constants.ARRAY);
+          }
+        } else {
+          tokenData = handleLineTypeValidate(result + constants.SEMI_COLON);
+
+          if (hasLength && tokenData) {
+            if (tokenData.tokenModifiers[1] === constants.STRING) {
+              tokenData = provider.parseToken(constants.NUMBER);
+            } else {
+              tokenData = null;
+            }
+          }
+        }
+
+        if (!tokenData && documents[result]) {
+          tokenData = documents[result].slice(-1)[0].tokenData;
+        }
       }
     } else if (
       definitionArea.endsWith(constants.BRACKET_END + constants.SEMI_COLON)
@@ -666,7 +735,7 @@ function makeProvdierHelpers() {
             .replace(constants.SEMI_COLON, constants.NONE);
         });
       const value = documents[arrayName].slice(-1)[0].value;
-      const resultArray = helper.handleArrayCreate(value)[0];
+      const resultArray = handleArrayCreate(value)[0];
       let result = null;
 
       indexList.forEach((index) => {
@@ -680,9 +749,7 @@ function makeProvdierHelpers() {
       if (Array.isArray(result)) {
         tokenData = provider.parseToken(constants.ARRAY);
       } else {
-        tokenData = helper.handleLineTypeValidate(
-          result + constants.SEMI_COLON
-        );
+        tokenData = handleLineTypeValidate(result + constants.SEMI_COLON);
       }
 
       if (!tokenData && documents[result]) {
@@ -695,13 +762,13 @@ function makeProvdierHelpers() {
       // object.property
       const data = definitionArea.slice(0, -1).split(constants.PERIOD);
       const objName = data[0];
-      const propertys = data.slice(1);
+      const properties = data.slice(1);
       const value = documents[objName].slice(-1)[0].value.trim().slice(0, -1);
-      const obj = helper.handleObjectEvaluate(value);
+      const obj = handleObjectEvaluate(documents, objName, value);
       let currentValue = null;
 
-      if (obj) {
-        propertys.forEach((property) => {
+      if (typeof obj === constants.OBJECT) {
+        properties.forEach((property) => {
           if (!currentValue) {
             currentValue = obj[property];
           } else {
@@ -720,6 +787,21 @@ function makeProvdierHelpers() {
             currentValue = documents[property];
           }
         });
+      } else if (typeof obj === constants.STRING) {
+        const results = findValueInKeyFromStringTypeObject(properties, obj);
+        const value = results.slice(-1)[0];
+
+        if (results) {
+          if (documents[value]) {
+            const type =
+              documents[value].slice(-1)[0].tokenData.tokenModifiers[1];
+            tokenData = provider.parseToken(type);
+          } else {
+            tokenData = handleLineTypeValidate(value + constants.SEMI_COLON);
+          }
+        } else {
+          tokenData = null;
+        }
       }
     }
 

@@ -6,6 +6,7 @@ const constants = {
   LANGUAGE_SHORT_JS: "js",
   SCHEME_FILE: "file",
   SEMI_COLON: ";",
+  COLON: ":",
   COMMA: ",",
   PERIOD: ".",
   BLANK: " ",
