@@ -101,10 +101,10 @@ function makeProvider() {
     let isExport = false;
     let isStartImport = false;
     let isFinishImport = false;
-    let importText = "";
+    let importText = constants.NONE;
 
     let scopeLineNumber = 0;
-    let scopeText = "";
+    let scopeText = constants.NONE;
 
     let currentOffset = 0;
 

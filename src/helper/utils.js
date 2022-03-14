@@ -24,13 +24,13 @@ function findValueInKeyFromStringTypeObject(keys, stringObj) {
       const keyStartIndex = copyStringObj.indexOf(key);
       const keyEndIndex = keyStartIndex + key.length;
       const colonIndex = copyStringObj.indexOf(constants.COLON, keyEndIndex);
+
       const value = copyStringObj
         .substring(colonIndex)
         .slice(1)
         .split(constants.COMMA)[0];
 
       results.push(value.trim());
-
       copyStringObj = copyStringObj.substring(colonIndex);
     } else {
       hasKey = false;
