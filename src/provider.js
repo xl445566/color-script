@@ -195,6 +195,16 @@ function makeProvider() {
         isFinishFunctionScope = resultScope.isFinishFunctionScope;
         isFunctionScope = resultScope.isFunctionScope;
 
+        if (line.includes("mad")) {
+          console.log("\n");
+          console.log("line", line);
+          console.log("isStartScope", isStartScope);
+          console.log("isFinishScope", isFinishScope);
+          console.log("isScope", isScope);
+          console.log("scopeLineNumber", scopeLineNumber);
+          console.log("scopeText \n", scopeText);
+        }
+
         if (isStartScope && !isFinishScope && !isScope) {
           isScope = true;
           scopeLineNumber = start + i + 1;
@@ -220,6 +230,14 @@ function makeProvider() {
             copyScopeDocuments,
             copyPendingDocuments
           );
+
+          console.log("\n");
+          console.log("isStartScope", isStartScope);
+          console.log("isFinishScope", isFinishScope);
+          console.log("isScope", isScope);
+          console.log("scopeLineNumber", scopeLineNumber);
+          console.log("scopeText \n", scopeText);
+          console.log("parsedTextResults", parsedTextResults);
 
           // 초기화
           if (!isStartScope) {
@@ -848,7 +866,7 @@ function makeProvdierHelpers() {
         isScope = false;
       }
     } else if (
-      value.includes(constants.EXPRESSION_IF) ||
+      (value.includes(constants.EXPRESSION_IF) && isScope) ||
       value.includes(constants.EXPRESSION_ELSE_IF) ||
       value.includes(constants.EXPRESSION_ELSE) ||
       (value.includes(constants.EXPRESSION_FOR) && isScope) ||
