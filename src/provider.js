@@ -20,7 +20,7 @@ const {
 const { findValueInKeyFromStringTypeObject } = require("./helper/utils");
 
 const provider = makeProvider();
-const helper = makeProvdierHelpers();
+const helper = makeProvdierHelper();
 
 function makeProvider() {
   async function provideDocumentSemanticTokens() {
@@ -196,6 +196,21 @@ function makeProvider() {
         let startPos = 0;
         let endPos = 0;
 
+        definitionArea = helper.handleDefinitionAreaOperation(
+          documents,
+          definitionArea
+        );
+
+        const multipleOperationResult =
+          helper.handleMultipleOperation(definitionArea);
+
+        if (multipleOperationResult.tokenData) {
+          tokenData = multipleOperationResult.tokenData;
+          definitionArea = multipleOperationResult.value + constants.SEMI_COLON;
+        } else {
+          tokenData = helper.handleLineTypeValidate(definitionArea);
+        }
+
         if (isExport) {
           const exportStringLength = declarationArea[0].length;
           const statementLength = declarationArea[1].length;
@@ -236,8 +251,6 @@ function makeProvider() {
         ) {
           continue;
         }
-
-        tokenData = helper.handleLineTypeValidate(definitionArea);
 
         if (!tokenData) {
           const addPropertyResult = helper.handleArrayAndObjectPropertyCreate(
@@ -300,7 +313,7 @@ function makeProvider() {
   };
 }
 
-function makeProvdierHelpers() {
+function makeProvdierHelper() {
   function handleLineTypeValidate(value) {
     let tokenData = null;
     const checkFunctions = [
@@ -479,6 +492,172 @@ function makeProvdierHelpers() {
       return func();
     } catch (error) {
       return documents[objName].slice(-1)[0].value;
+    }
+  }
+
+  function handleDefinitionAreaOperation(documents, definitionArea) {
+    if (definitionArea.includes(constants.PLUS)) {
+      definitionArea =
+        definitionArea
+          .split(constants.PLUS)
+          .map((value) => {
+            if (value.includes(constants.SEMI_COLON)) {
+              value = value.replace(constants.SEMI_COLON, constants.NONE);
+            }
+
+            if (documents[value.trim()]) {
+              const document = documents[value.trim()].slice(-1)[0];
+
+              value = document.value.replace(
+                constants.SEMI_COLON,
+                constants.NONE
+              );
+
+              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                value = `"${value}"`;
+              }
+            }
+
+            return value;
+          })
+          .join(constants.PLUS) + constants.SEMI_COLON;
+    }
+
+    if (definitionArea.includes(constants.MINUS)) {
+      definitionArea =
+        definitionArea
+          .split(constants.MINUS)
+          .map((value) => {
+            if (value.includes(constants.SEMI_COLON)) {
+              value = value.replace(constants.SEMI_COLON, constants.NONE);
+            }
+
+            if (documents[value.trim()]) {
+              const document = documents[value.trim()].slice(-1)[0];
+
+              value = document.value.replace(
+                constants.SEMI_COLON,
+                constants.NONE
+              );
+
+              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                value = `"${value}"`;
+              }
+            }
+
+            return value;
+          })
+          .join(constants.MINUS) + constants.SEMI_COLON;
+    }
+
+    if (definitionArea.includes(constants.MULTIPLY)) {
+      definitionArea =
+        definitionArea
+          .split(constants.MULTIPLY)
+          .map((value) => {
+            if (value.includes(constants.SEMI_COLON)) {
+              value = value.replace(constants.SEMI_COLON, constants.NONE);
+            }
+
+            if (documents[value.trim()]) {
+              const document = documents[value.trim()].slice(-1)[0];
+
+              value = document.value.replace(
+                constants.SEMI_COLON,
+                constants.NONE
+              );
+
+              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                value = `"${value}"`;
+              }
+            }
+
+            return value;
+          })
+          .join(constants.MULTIPLY) + constants.SEMI_COLON;
+    }
+
+    if (definitionArea.includes(constants.DIVISION)) {
+      definitionArea =
+        definitionArea
+          .split(constants.DIVISION)
+          .map((value) => {
+            if (value.includes(constants.SEMI_COLON)) {
+              value = value.replace(constants.SEMI_COLON, constants.NONE);
+            }
+
+            if (documents[value.trim()]) {
+              const document = documents[value.trim()].slice(-1)[0];
+
+              value = document.value.replace(
+                constants.SEMI_COLON,
+                constants.NONE
+              );
+
+              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                value = `"${value}"`;
+              }
+            }
+
+            return value;
+          })
+          .join(constants.DIVISION) + constants.SEMI_COLON;
+    }
+
+    if (definitionArea.includes(constants.REMAIN)) {
+      definitionArea =
+        definitionArea
+          .split(constants.REMAIN)
+          .map((value) => {
+            if (value.includes(constants.SEMI_COLON)) {
+              value = value.replace(constants.SEMI_COLON, constants.NONE);
+            }
+
+            if (documents[value.trim()]) {
+              const document = documents[value.trim()].slice(-1)[0];
+
+              value = document.value.replace(
+                constants.SEMI_COLON,
+                constants.NONE
+              );
+
+              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                value = `"${value}"`;
+              }
+            }
+
+            return value;
+          })
+          .join(constants.REMAIN) + constants.SEMI_COLON;
+    }
+
+    return definitionArea;
+  }
+
+  function handleMultipleOperation(val) {
+    try {
+      const func = new Function(`return ${val};`);
+      const result = func();
+      let tokenData = null;
+      let value;
+
+      if (Array.isArray(result)) {
+        tokenData = provider.parseToken(constants.ARRAY);
+        value = result;
+      } else if (typeof result === constants.OBJECT && result === null) {
+        tokenData = provider.parseToken(constants.NULL);
+        value = result;
+      } else {
+        tokenData = provider.parseToken(typeof result);
+        value = result;
+      }
+
+      return {
+        tokenData,
+        value,
+      };
+    } catch (error) {
+      return null;
     }
   }
 
@@ -1040,6 +1219,8 @@ function makeProvdierHelpers() {
     handleUndefinedType,
     handleArrayCreate,
     handleObjectEvaluate,
+    handleDefinitionAreaOperation,
+    handleMultipleOperation,
     handleArrayAndObjectPropertyCreate,
     handleImportParse,
     handleVariableAndValueParse,
