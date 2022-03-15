@@ -1,15 +1,9 @@
-//@ts-check
-
 "use strict";
-
 const path = require("path");
-const webpack = require("webpack");
-
 /**@type {import('webpack').Configuration}*/
 
 const config = {
-  target: "webworker",
-
+  target: "node",
   entry: "./extension.js",
   output: {
     path: path.resolve(__dirname, "dist"),
@@ -24,6 +18,9 @@ const config = {
   resolve: {
     mainFields: ["browser", "module", "main"],
     extensions: [".js"],
+    fallback: {
+      fs: require.resolve("fs"),
+    },
   },
 };
 
