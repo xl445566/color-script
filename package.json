@@ -3,7 +3,7 @@
   "publisher": "dongsuseo",
   "displayName": "color-script",
   "description": "It shows the color of the variable name differently depending on the type of variable",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.64.0"
   },
