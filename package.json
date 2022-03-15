@@ -11,7 +11,7 @@
   "description": "It shows the color of the variable name differently depending on the type of variable",
   "displayName": "color-script",
   "engines": {
-    "vscode": "^1.64.0"
+    "vscode": "^1.60.0"
   },
   "categories": [
     "Other",
