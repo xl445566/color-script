@@ -162,9 +162,10 @@ function makeProvider() {
 
         const validatedLineResults = cleanLine(line, isCommenting);
         const isSkip = validatedLineResults.isSkip;
+        const isExpression = helper.handleBlockAndFunctionExpressionCheck(line);
         isCommenting = validatedLineResults.isCommenting;
-
-        if (isSkip || isCommenting) {
+    
+        if (isSkip || isCommenting || isExpression) {
           continue;
         }
 
@@ -204,7 +205,7 @@ function makeProvider() {
         const multipleOperationResult =
           helper.handleMultipleOperation(definitionArea);
 
-        if (multipleOperationResult.tokenData) {
+        if (multipleOperationResult?.tokenData) {
           tokenData = multipleOperationResult.tokenData;
           definitionArea = multipleOperationResult.value + constants.SEMI_COLON;
         } else {
@@ -296,7 +297,7 @@ function makeProvider() {
         continue;
       }
     }
-
+    
     return {
       tokens: results,
       dom: documents,
@@ -414,6 +415,15 @@ function makeProvdierHelper() {
     };
   }
 
+  function handleBlockAndFunctionExpressionCheck(value) {
+    const syntaxArray = [constants.EXPRESSION_IF, constants.EXPRESSION_ELSE_IF, constants.EXPRESSION_ELSE, constants.EXPRESSION_FOR, constants.EXPRESSION_WHILE, constants.EXPRESSION_FUNCTION];
+    const isContain = syntaxArray.some(syntax => {
+      return value.includes(syntax) === true;
+    });
+
+    return isContain;
+  }
+
   function handleUndefinedType(value) {
     const hasSemicolon = value.trim().slice(-1) === constants.SEMI_COLON;
     let splitedValue = value.trim().split(constants.BLANK);
@@ -495,142 +505,40 @@ function makeProvdierHelper() {
     }
   }
 
-  function handleDefinitionAreaOperation(documents, definitionArea) {
-    if (definitionArea.includes(constants.PLUS)) {
-      definitionArea =
-        definitionArea
-          .split(constants.PLUS)
-          .map((value) => {
-            if (value.includes(constants.SEMI_COLON)) {
-              value = value.replace(constants.SEMI_COLON, constants.NONE);
-            }
+  function handleDefinitionAreaOperation(documents, value) {
+    const symbols = [constants.PLUS, constants.MINUS, constants.MULTIPLY, constants.DIVISION, constants.REMAIN];
+    let definitionArea = value;
 
-            if (documents[value.trim()]) {
-              const document = documents[value.trim()].slice(-1)[0];
-
-              value = document.value.replace(
-                constants.SEMI_COLON,
-                constants.NONE
-              );
-
-              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                value = `"${value}"`;
+    symbols.forEach(symbol => {
+      if (definitionArea.includes(symbol)) {
+        definitionArea =
+          definitionArea
+            .split(symbol)
+            .map((value) => {
+              if (value.includes(constants.SEMI_COLON)) {
+                value = value.replace(constants.SEMI_COLON, constants.NONE);
               }
-            }
-
-            return value;
-          })
-          .join(constants.PLUS) + constants.SEMI_COLON;
-    }
-
-    if (definitionArea.includes(constants.MINUS)) {
-      definitionArea =
-        definitionArea
-          .split(constants.MINUS)
-          .map((value) => {
-            if (value.includes(constants.SEMI_COLON)) {
-              value = value.replace(constants.SEMI_COLON, constants.NONE);
-            }
-
-            if (documents[value.trim()]) {
-              const document = documents[value.trim()].slice(-1)[0];
-
-              value = document.value.replace(
-                constants.SEMI_COLON,
-                constants.NONE
-              );
-
-              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                value = `"${value}"`;
+  
+              if (documents[value.trim()]) {
+                const document = documents[value.trim()].slice(-1)[0];
+  
+                value = document.value.replace(
+                  constants.SEMI_COLON,
+                  constants.NONE
+                );
+  
+                if (document.tokenData.tokenModifiers[1] === constants.STRING) {
+                  value = `"${value}"`;
+                }
               }
-            }
-
-            return value;
-          })
-          .join(constants.MINUS) + constants.SEMI_COLON;
-    }
-
-    if (definitionArea.includes(constants.MULTIPLY)) {
-      definitionArea =
-        definitionArea
-          .split(constants.MULTIPLY)
-          .map((value) => {
-            if (value.includes(constants.SEMI_COLON)) {
-              value = value.replace(constants.SEMI_COLON, constants.NONE);
-            }
-
-            if (documents[value.trim()]) {
-              const document = documents[value.trim()].slice(-1)[0];
-
-              value = document.value.replace(
-                constants.SEMI_COLON,
-                constants.NONE
-              );
-
-              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                value = `"${value}"`;
-              }
-            }
-
-            return value;
-          })
-          .join(constants.MULTIPLY) + constants.SEMI_COLON;
-    }
-
-    if (definitionArea.includes(constants.DIVISION)) {
-      definitionArea =
-        definitionArea
-          .split(constants.DIVISION)
-          .map((value) => {
-            if (value.includes(constants.SEMI_COLON)) {
-              value = value.replace(constants.SEMI_COLON, constants.NONE);
-            }
-
-            if (documents[value.trim()]) {
-              const document = documents[value.trim()].slice(-1)[0];
-
-              value = document.value.replace(
-                constants.SEMI_COLON,
-                constants.NONE
-              );
-
-              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                value = `"${value}"`;
-              }
-            }
-
-            return value;
-          })
-          .join(constants.DIVISION) + constants.SEMI_COLON;
-    }
-
-    if (definitionArea.includes(constants.REMAIN)) {
-      definitionArea =
-        definitionArea
-          .split(constants.REMAIN)
-          .map((value) => {
-            if (value.includes(constants.SEMI_COLON)) {
-              value = value.replace(constants.SEMI_COLON, constants.NONE);
-            }
-
-            if (documents[value.trim()]) {
-              const document = documents[value.trim()].slice(-1)[0];
-
-              value = document.value.replace(
-                constants.SEMI_COLON,
-                constants.NONE
-              );
-
-              if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                value = `"${value}"`;
-              }
-            }
-
-            return value;
-          })
-          .join(constants.REMAIN) + constants.SEMI_COLON;
-    }
-
+  
+              return value;
+            })
+            .join(symbol) + constants.SEMI_COLON;
+      }
+  
+    });
+   
     return definitionArea;
   }
 
@@ -1217,6 +1125,7 @@ function makeProvdierHelper() {
     handleLineTypeValidate,
     handleMultilineParse,
     handleUndefinedType,
+    handleBlockAndFunctionExpressionCheck,
     handleArrayCreate,
     handleObjectEvaluate,
     handleDefinitionAreaOperation,
