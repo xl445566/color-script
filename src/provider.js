@@ -657,7 +657,7 @@ function makeProvdierHelper() {
         value,
       };
     } catch (error) {
-      return "에러발생!!";
+      return null;
     }
   }
 
