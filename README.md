@@ -1,5 +1,7 @@
 ## Color-Script
 
+#### [Project README 바로가기](https://www.doran-chat.com/)
+
 ---
 
 ### 설명
