@@ -164,7 +164,7 @@ function makeProvider() {
         const isSkip = validatedLineResults.isSkip;
         const isExpression = helper.handleBlockAndFunctionExpressionCheck(line);
         isCommenting = validatedLineResults.isCommenting;
-    
+
         if (isSkip || isCommenting || isExpression) {
           continue;
         }
@@ -173,7 +173,7 @@ function makeProvider() {
         let trimedLine = trimedLineResults.line;
         currentOffset = trimedLineResults.count;
 
-        if (trimedLine.split(constants.BLANK).length === 2) {
+        if (trimedLine.split(constants.BLANK).length < 2) {
           trimedLine = helper.handleUndefinedType(trimedLine);
 
           if (!trimedLine) {
@@ -202,14 +202,17 @@ function makeProvider() {
           definitionArea
         );
 
-        const multipleOperationResult =
-          helper.handleMultipleOperation(definitionArea);
+        tokenData = helper.handleLineTypeValidate(definitionArea);
 
-        if (multipleOperationResult?.tokenData) {
-          tokenData = multipleOperationResult.tokenData;
-          definitionArea = multipleOperationResult.value + constants.SEMI_COLON;
-        } else {
-          tokenData = helper.handleLineTypeValidate(definitionArea);
+        if (!tokenData) {
+          const multipleOperationResult =
+            helper.handleMultipleOperation(definitionArea);
+
+          if (multipleOperationResult && multipleOperationResult.tokenData) {
+            tokenData = multipleOperationResult.tokenData;
+            definitionArea =
+              multipleOperationResult.value + constants.SEMI_COLON;
+          }
         }
 
         if (isExport) {
@@ -297,7 +300,7 @@ function makeProvider() {
         continue;
       }
     }
-    
+
     return {
       tokens: results,
       dom: documents,
@@ -416,8 +419,15 @@ function makeProvdierHelper() {
   }
 
   function handleBlockAndFunctionExpressionCheck(value) {
-    const syntaxArray = [constants.EXPRESSION_IF, constants.EXPRESSION_ELSE_IF, constants.EXPRESSION_ELSE, constants.EXPRESSION_FOR, constants.EXPRESSION_WHILE, constants.EXPRESSION_FUNCTION];
-    const isContain = syntaxArray.some(syntax => {
+    const syntaxArray = [
+      constants.EXPRESSION_IF,
+      constants.EXPRESSION_ELSE_IF,
+      constants.EXPRESSION_ELSE,
+      constants.EXPRESSION_FOR,
+      constants.EXPRESSION_WHILE,
+      constants.EXPRESSION_FUNCTION,
+    ];
+    const isContain = syntaxArray.some((syntax) => {
       return value.includes(syntax) === true;
     });
 
@@ -506,10 +516,16 @@ function makeProvdierHelper() {
   }
 
   function handleDefinitionAreaOperation(documents, value) {
-    const symbols = [constants.PLUS, constants.MINUS, constants.MULTIPLY, constants.DIVISION, constants.REMAIN];
+    const symbols = [
+      constants.PLUS,
+      constants.MINUS,
+      constants.MULTIPLY,
+      constants.DIVISION,
+      constants.REMAIN,
+    ];
     let definitionArea = value;
 
-    symbols.forEach(symbol => {
+    symbols.forEach((symbol) => {
       if (definitionArea.includes(symbol)) {
         definitionArea =
           definitionArea
@@ -518,27 +534,26 @@ function makeProvdierHelper() {
               if (value.includes(constants.SEMI_COLON)) {
                 value = value.replace(constants.SEMI_COLON, constants.NONE);
               }
-  
+
               if (documents[value.trim()]) {
                 const document = documents[value.trim()].slice(-1)[0];
-  
+
                 value = document.value.replace(
                   constants.SEMI_COLON,
                   constants.NONE
                 );
-  
+
                 if (document.tokenData.tokenModifiers[1] === constants.STRING) {
                   value = `"${value}"`;
                 }
               }
-  
+
               return value;
             })
             .join(symbol) + constants.SEMI_COLON;
       }
-  
     });
-   
+
     return definitionArea;
   }
 
@@ -666,7 +681,13 @@ function makeProvdierHelper() {
             .replace(constants.BRACKET_END, constants.NONE)
             .replace(constants.SEMI_COLON, constants.NONE);
         });
-      const value = documents[arrayName].slice(-1)[0].value;
+      let value = documents[arrayName].slice(-1)[0].value;
+      value =
+        value.includes(constants.BRACKET_START) &&
+        value.includes(constants.BRACKET_END)
+          ? documents[arrayName].slice(-1)[0].value
+          : `[${documents[arrayName].slice(-1)[0].value.slice(0, -1)}];`;
+
       const resultArray = handleArrayCreate(value)[0];
       let result = null;
 
