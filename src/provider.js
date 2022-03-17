@@ -173,7 +173,7 @@ function makeProvider() {
         let trimedLine = trimedLineResults.line;
         currentOffset = trimedLineResults.count;
 
-        if (trimedLine.split(constants.BLANK).length < 2) {
+        if (trimedLine.split(constants.BLANK).length < 3) {
           trimedLine = helper.handleUndefinedType(trimedLine);
 
           if (!trimedLine) {
@@ -507,7 +507,7 @@ function makeProvdierHelper() {
 
   function handleObjectEvaluate(documents, objName, value) {
     try {
-      const func = new Function(`return ${value};`);
+      const func = Function(`return ${value};`);
 
       return func();
     } catch (error) {
@@ -544,7 +544,7 @@ function makeProvdierHelper() {
                 );
 
                 if (document.tokenData.tokenModifiers[1] === constants.STRING) {
-                  value = `"${value}"`;
+                  value = `${value}`;
                 }
               }
 
@@ -557,10 +557,9 @@ function makeProvdierHelper() {
     return definitionArea;
   }
 
-  function handleMultipleOperation(val) {
+  function handleMultipleOperation(text) {
     try {
-      const func = new Function(`return ${val};`);
-      const result = func();
+      const result = Function(`return ${text};`)();
       let tokenData = null;
       let value;
 
@@ -741,19 +740,40 @@ function makeProvdierHelper() {
         });
       } else if (typeof obj === constants.STRING) {
         const results = findValueInKeyFromStringTypeObject(properties, obj);
-        const value = results.slice(-1)[0];
 
-        if (results) {
-          if (documents[value]) {
-            const type =
-              documents[value].slice(-1)[0].tokenData.tokenModifiers[1];
-            tokenData = provider.parseToken(type);
-          } else {
-            tokenData = handleLineTypeValidate(value + constants.SEMI_COLON);
+        results.forEach((value) => {
+          let objValue = value;
+
+          if (objValue.includes(constants.BRACE_START)) {
+            objValue += constants.BRACE_END;
+          } else if (objValue.includes(constants.BRACKET_START)) {
+            objValue += constants.BRACKET_END;
           }
-        } else {
-          tokenData = null;
-        }
+
+          if (results.length) {
+            if (documents[objValue]) {
+              const type =
+                documents[objValue].slice(-1)[0].tokenData.tokenModifiers[1];
+              const value = documents[objValue].slice(-1)[0].value;
+
+              tokenData = handleLineTypeValidate(
+                value.includes(constants.SEMI_COLON)
+                  ? value
+                  : value + constants.SEMI_COLON
+              );
+
+              if (!tokenData) {
+                tokenData = provider.parseToken(type);
+              }
+            } else {
+              tokenData = handleLineTypeValidate(
+                objValue + constants.SEMI_COLON
+              );
+            }
+          } else {
+            tokenData = null;
+          }
+        });
       }
     }
 
