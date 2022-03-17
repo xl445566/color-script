@@ -1,6 +1,6 @@
 ## Color-Script
 
-#### [Project README 바로가기](https://www.doran-chat.com/)
+#### [README 바로가기](https://github.com/xl445566/color-script/blob/main/projectREADME.md)
 
 ---
 
@@ -9,6 +9,8 @@
 #### 1. 코드 작성시 변수에 할당한 데이터의 타입에 따라 색상을 맵핑하여 시각적 도움을 줍니다.
 
 #### 2. 바닐라 자바스크립트만 지원합니다.
+
+#### 3. ESLint와 함께 사용을 권장합니다.
 
 <br />
 
