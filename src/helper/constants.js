@@ -55,6 +55,7 @@ const constants = {
   TRUE: "true",
   FALSE: "false",
   LENGTH: "length",
+  TEST: "test",
 };
 
 module.exports = constants;

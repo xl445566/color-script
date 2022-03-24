@@ -1,19 +1,5 @@
 const constants = require("./constants");
 
-function cloneDeep(obj) {
-  if (obj === null || typeof obj !== constants.OBJECT) {
-    return obj;
-  }
-
-  const result = Array.isArray(obj) ? [] : {};
-
-  for (let key of Object.keys(obj)) {
-    result[key] = cloneDeep(obj[key]);
-  }
-
-  return result;
-}
-
 function findValueInKeyFromStringTypeObject(keys, stringObj) {
   const results = [];
   let copyStringObj = stringObj;
@@ -40,5 +26,11 @@ function findValueInKeyFromStringTypeObject(keys, stringObj) {
   return hasKey ? results : null;
 }
 
-exports.cloneDeep = cloneDeep;
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 exports.findValueInKeyFromStringTypeObject = findValueInKeyFromStringTypeObject;
+exports.sleep = sleep;
