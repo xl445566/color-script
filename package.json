@@ -1,6 +1,6 @@
 {
   "license": "SEE LICENSE IN LICENSE.txt",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "dongsuseo",
   "repository": {
     "type": "git",
@@ -33,7 +33,6 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "pretest": "npm run lint",
     "test": "node ./test/runTest.js",
     "vscode:prepublish": "npm run package",
     "webpack": "webpack --mode development",

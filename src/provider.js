@@ -44,22 +44,25 @@ function makeProvider() {
     return builder.build();
   }
 
-  function encodeTokenType(tokenType) {
-    if (tokenTypes.has(tokenType)) {
-      return tokenTypes.get(tokenType);
+  function encodeTokenType(tokenType, types) {
+    const tokenTypeList = types === undefined ? tokenTypes : types;
+
+    if (tokenTypeList.has(tokenType)) {
+      return tokenTypeList.get(tokenType);
     }
 
     return 0;
   }
 
-  function encodeTokenModifiers(strTokenModifiers) {
+  function encodeTokenModifiers(strTokenModifiers, modifiers) {
+    const modifierList = modifiers === undefined ? tokenModifiers : modifiers;
     let result = 0;
 
     for (let i = 0; i < strTokenModifiers.length; i++) {
       const tokenModifier = strTokenModifiers[i];
 
-      if (tokenModifiers.has(tokenModifier)) {
-        result = result | (1 << tokenModifiers.get(tokenModifier));
+      if (modifierList.has(tokenModifier)) {
+        result = result | (1 << modifierList.get(tokenModifier));
       }
     }
 
@@ -73,8 +76,12 @@ function makeProvider() {
     };
   }
 
-  function parseText(text, start) {
-    const path = vscode.window.activeTextEditor.document.uri.fsPath;
+  function parseText(text, start, uri) {
+    const path =
+      uri === undefined
+        ? vscode.window.activeTextEditor.document.uri.fsPath
+        : uri;
+
     const lines = text.split(constants.REG_EX_LINE);
     let results = [];
 
