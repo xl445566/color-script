@@ -1,4 +1,4 @@
-![colorScript](https://user-images.githubusercontent.com/78071591/158539078-3099c700-f610-49a6-ac8a-6855e1e6c978.png)
+![colorScript](https://user-images.githubusercontent.com/78071591/160069349-cf500f89-7777-45e0-962b-8593c55e9467.png)
 
 > ## 동기
 

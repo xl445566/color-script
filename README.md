@@ -1,3 +1,5 @@
+![colorScript](https://user-images.githubusercontent.com/78071591/160069349-cf500f89-7777-45e0-962b-8593c55e9467.png)
+
 ## Color-Script
 
 #### [README 바로가기](https://github.com/xl445566/color-script/blob/main/projectREADME.md)
