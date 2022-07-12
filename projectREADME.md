@@ -39,7 +39,7 @@
 
 - String, Number, Boolean, Null, Undefined, Array, Ojbect 의 리터럴한 입력값에 인식, 맵핑 처리
 
-- 재할당 , 호이스팅 처리
+- 재할당 , 호이스팅 처리(로직 불충분으로 인한 제거)
 
 - Array.length / Array[index] / Object.property 형식의 문법 인식 , 맵핑 처리
 
